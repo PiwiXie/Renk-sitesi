@@ -29,52 +29,50 @@
     </header>
 
     <div class="app-viewport">
-        <!-- Profil ve Katılma Kartı -->
         <div class="container">
             <div class="header-title-box">
                 <h1 class="logo">
                     <span class="logo-icon">🎴</span>
                     <span class="logo-text">101 Okey v2</span>
                 </h1>
-                <p class="tagline">Gerçek Zamanlı Çok Oyunculu Masa Oyunu</p>
+                <p class="tagline">Gerçek Zamanlı Çok Oyunculu Masa & Lobi Sistemi</p>
             </div>
 
-            <!-- Avatar ve Giriş Alanı -->
-            <section id="nameSection" class="card">
+            <!-- 1. PROFİL VE KARAKTER SEÇİMİ -->
+            <section class="card">
                 <div class="card-head-row">
-                    <h2>🎮 Hoş Geldin!</h2>
-                    <span class="badge-pill">4 Kişilik</span>
+                    <h2>👤 Oyuncu Profili</h2>
+                    <span class="badge-pill">Adım 1 / 2</span>
                 </div>
-                <p class="welcome-text">İsmini yaz, avatarını & ıstakanı seç ve masaya katıl</p>
 
                 <!-- İsim Girişi -->
                 <div class="name-input-container">
-                    <label class="input-label">Oyuncu İsmi</label>
-                    <input type="text" id="playerNameInput" class="name-input" placeholder="İsmini yaz..." maxlength="15" autocomplete="off">
+                    <label class="input-label">Oyuncu İsminiz</label>
+                    <input type="text" id="playerNameInput" class="name-input" placeholder="İsminizi yazın..." maxlength="15" autocomplete="off">
                 </div>
 
                 <!-- Avatar Seçimi -->
                 <div class="avatar-selection">
-                    <p class="section-label">Avatarını Seç:</p>
+                    <p class="section-label">Avatarınızı Seçin:</p>
                     <div class="avatar-grid">
                         <div class="avatar-option selected" data-avatar="alibicim.png" title="Ali Biçim">
-                            <img src="asset/avatars/alibicim.png" alt="Avatar 1">
+                            <img src="asset/avatars/alibicim.png" alt="Ali Biçim">
                         </div>
                         <div class="avatar-option" data-avatar="egefitness.png" title="Ege Fitness">
-                            <img src="asset/avatars/egefitness.png" alt="Avatar 2">
+                            <img src="asset/avatars/egefitness.png" alt="Ege Fitness">
                         </div>
                         <div class="avatar-option" data-avatar="james.jpg" title="LeBron James">
-                            <img src="asset/avatars/james.jpg" alt="Avatar 3">
+                            <img src="asset/avatars/james.jpg" alt="LeBron James">
                         </div>
                         <div class="avatar-option" data-avatar="lvblc5.jpg" title="Lvbel C5">
-                            <img src="asset/avatars/lvblc5.jpg" alt="Avatar 4">
+                            <img src="asset/avatars/lvblc5.jpg" alt="Lvbel C5">
                         </div>
                     </div>
                 </div>
 
-                <!-- Istaka Renk Seçimi -->
+                <!-- Istaka Seçimi -->
                 <div class="istaka-selection">
-                    <p class="section-label">Istaka Deseni:</p>
+                    <p class="section-label">Istaka Deseniniz:</p>
                     <div class="istaka-grid">
                         <div class="istaka-option selected" data-istaka="istaka.jpg" title="Klasik Ahşap">
                             <img src="asset/istaka.jpg" alt="Klasik">
@@ -87,44 +85,93 @@
                     </div>
                 </div>
 
-                <!-- Kural Seçenekleri -->
+                <!-- Oyun Modu Seçenekleri -->
                 <div class="rules-toggles-box">
-                    <!-- Takım Modu Toggle -->
                     <div class="team-mode-toggle">
                         <label class="toggle-label">
-                            <span class="toggle-text">👥 Takım Modu (Eşli)</span>
+                            <span class="toggle-text">👥 Takım Modu (Eşli Oyun)</span>
                             <input type="checkbox" id="teamModeToggle">
                             <span class="toggle-slider"></span>
                         </label>
-                        <p class="toggle-info">Karşılıklı oturan oyuncular aynı takımda yarışır</p>
+                        <p class="toggle-info">Karşılıklı oyuncular aynı takımda yarışır</p>
                     </div>
 
-                    <!-- Katlamalı Oyun Toggle -->
                     <div class="team-mode-toggle">
                         <label class="toggle-label">
                             <span class="toggle-text">⚡ Katlamalı Açma</span>
                             <input type="checkbox" id="stackingModeToggle">
                             <span class="toggle-slider"></span>
                         </label>
-                        <p class="toggle-info">Her sonraki oyuncu daha yüksek puanla el açmalıdır</p>
+                        <p class="toggle-info">Her açan oyuncu bir öncekinden yüksek puanla açmalıdır</p>
                     </div>
 
-                    <!-- Cezalı Oyun Toggle -->
                     <div class="team-mode-toggle">
                         <label class="toggle-label">
                             <span class="toggle-text">🛡️ Cezalı Oyun</span>
                             <input type="checkbox" id="penaltyModeToggle">
                             <span class="toggle-slider"></span>
                         </label>
-                        <p class="toggle-info">İşler atma ve ceza puanı kuralları aktiftir</p>
+                        <p class="toggle-info">İşler atma ve ceza puanları geçerlidir</p>
                     </div>
                 </div>
+            </section>
 
-                <!-- Butonlar -->
-                <div style="display:flex;gap:10px;margin-top:6px">
-                    <button id="joinGameBtn" class="btn btn-primary btn-large">🎮 Oyuna Katıl ve Masaya Otur</button>
+            <!-- 2. LOBİ VE MASALAR -->
+            <section class="card">
+                <div class="card-head-row">
+                    <h2>🎲 Masalar ve Lobi</h2>
+                    <button id="createRoomModalBtn" class="btn-sm" style="background:#22c55e;color:#000;font-weight:800;border:none;border-radius:8px;padding:6px 12px;cursor:pointer">➕ Yeni Masa Kur</button>
+                </div>
+
+                <div style="display:flex;gap:10px;margin-bottom:8px">
+                    <button id="quickJoinBtn" class="btn btn-primary btn-large" style="margin:0;background:linear-gradient(135deg,#22c55e,#16a34a)">
+                        ⚡ Hızlı Masaya Otur (Tek Tıkla Başla)
+                    </button>
+                </div>
+
+                <p class="section-label" style="margin-top:10px">Aktif Masalar:</p>
+                <div id="roomsListContainer" class="rooms-list-container">
+                    <div class="room-item-card" data-room="MAIN">
+                        <div class="room-item-left">
+                            <span class="room-item-icon">🀄</span>
+                            <div>
+                                <div class="room-item-name">Ana Oyun Masası</div>
+                                <div class="room-item-details">Klasik 101 • 4 Kişilik • Herkese Açık</div>
+                            </div>
+                        </div>
+                        <div class="room-item-right">
+                            <span class="room-item-badge" id="mainRoomBadge">1/4</span>
+                            <button class="room-join-btn" onclick="joinSpecificRoom('MAIN')">Otur</button>
+                        </div>
+                    </div>
                 </div>
             </section>
+
+            <!-- ODA KURMA MODAL -->
+            <div id="createRoomModal" class="modal hidden">
+                <div class="modal-content" style="max-width:400px;background:#181818;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:14px">
+                    <h3 style="font-size:18px;font-weight:800;color:#fff">➕ Yeni Masa Kur</h3>
+                    <input type="text" id="newRoomNameInput" class="name-input" placeholder="Masa Adı (Örn: Burak Masası)" maxlength="20">
+                    <input type="password" id="newRoomPasswordInput" class="name-input" placeholder="Şifre (Opsiyonel / Boş = Açık)">
+                    <div style="display:flex;gap:8px;margin-top:6px">
+                        <button id="cancelCreateRoomBtn" class="header-home-btn" style="flex:1;cursor:pointer">İptal</button>
+                        <button id="confirmCreateRoomBtn" class="btn btn-primary" style="flex:1;background:#22c55e;color:#000;font-weight:800;border:none;border-radius:10px;padding:10px;cursor:pointer">Kur ve Otur</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ŞİFRE MODAL -->
+            <div id="roomPasswordModal" class="modal hidden">
+                <div class="modal-content" style="max-width:360px;background:#181818;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:14px">
+                    <h3 style="font-size:18px;font-weight:800;color:#fff">🔒 Masa Şifresi</h3>
+                    <p style="font-size:13px;color:#888">Bu masa şifrelidir. Girmek için şifreyi yazın:</p>
+                    <input type="password" id="enterRoomPasswordInput" class="name-input" placeholder="Masa Şifresi">
+                    <div style="display:flex;gap:8px;margin-top:6px">
+                        <button id="cancelPasswordBtn" class="header-home-btn" style="flex:1;cursor:pointer">Vazgeç</button>
+                        <button id="confirmPasswordBtn" class="btn btn-primary" style="flex:1;background:#22c55e;color:#000;font-weight:800;border:none;border-radius:10px;padding:10px;cursor:pointer">Giriş Yap</button>
+                    </div>
+                </div>
+            </div>
 
             <!-- Hata Mesajı -->
             <div id="errorToast" class="toast hidden">
@@ -134,8 +181,9 @@
         </div>
     </div>
 
-    <!-- Firebase & Adapter -->
+    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
     <script src="js/firebase-adapter.js"></script>
     <script src="js/main.js"></script>

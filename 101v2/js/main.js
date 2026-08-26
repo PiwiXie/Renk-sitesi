@@ -1,208 +1,294 @@
-// 101 Okey - Ana Sayfa JavaScript (Sadeleştirilmiş)
+// ============================================================
+// 101 OKEY v2 — ANA SAYFA & LOBİ MANTIĞI
+// ============================================================
+
 const socket = io();
 
-socket.on('connect', () => {
-    console.log('Socket connected:', socket.id);
-});
-
-socket.on('connect_error', (err) => {
-    console.error('Socket connection error:', err);
-    alert('Sunucuyla bağlantı kurulamadı! Lütfen sayfayı yenileyin veya sunucunun çalıştığından emin olun.');
-});
-
-// DOM Elementleri
-const nameSection = document.getElementById('nameSection');
+// DOM Elements
 const playerNameInput = document.getElementById('playerNameInput');
 const errorToast = document.getElementById('errorToast');
-const joinGameBtn = document.getElementById('joinGameBtn');
+const quickJoinBtn = document.getElementById('quickJoinBtn');
 const teamModeToggle = document.getElementById('teamModeToggle');
 const stackingModeToggle = document.getElementById('stackingModeToggle');
 const penaltyModeToggle = document.getElementById('penaltyModeToggle');
 
-let playerName = '';
-let selectedAvatar = 'alibicim.png';
-let selectedIstaka = 'istaka.jpg';
+// Modal Elements
+const createRoomModalBtn = document.getElementById('createRoomModalBtn');
+const createRoomModal = document.getElementById('createRoomModal');
+const cancelCreateRoomBtn = document.getElementById('cancelCreateRoomBtn');
+const confirmCreateRoomBtn = document.getElementById('confirmCreateRoomBtn');
+const newRoomNameInput = document.getElementById('newRoomNameInput');
+const newRoomPasswordInput = document.getElementById('newRoomPasswordInput');
 
-// Avatar seçimi
+const roomPasswordModal = document.getElementById('roomPasswordModal');
+const cancelPasswordBtn = document.getElementById('cancelPasswordBtn');
+const confirmPasswordBtn = document.getElementById('confirmPasswordBtn');
+const enterRoomPasswordInput = document.getElementById('enterRoomPasswordInput');
+const roomsListContainer = document.getElementById('roomsListContainer');
+
+let selectedAvatar = localStorage.getItem('okeyPlayerAvatar') || 'alibicim.png';
+let selectedIstaka = localStorage.getItem('okeyPlayerIstaka') || 'istaka.jpg';
+let pendingJoinRoom = null;
+
+// Önceden kayıtlı ismi yükle
+if (playerNameInput) {
+    playerNameInput.value = localStorage.getItem('okeyPlayerName') || '';
+}
+
+// Avatar Seçimi
 const avatarOptions = document.querySelectorAll('.avatar-option');
 avatarOptions.forEach(option => {
+    if (option.dataset.avatar === selectedAvatar) {
+        avatarOptions.forEach(o => o.classList.remove('selected'));
+        option.classList.add('selected');
+    }
     option.addEventListener('click', () => {
         avatarOptions.forEach(o => o.classList.remove('selected'));
         option.classList.add('selected');
         selectedAvatar = option.dataset.avatar;
+        localStorage.setItem('okeyPlayerAvatar', selectedAvatar);
         playSound('click');
     });
 });
 
-// Istaka renk seçimi
+// Istaka Seçimi
 const istakaOptions = document.querySelectorAll('.istaka-option');
 istakaOptions.forEach(option => {
+    if (option.dataset.istaka === selectedIstaka) {
+        istakaOptions.forEach(o => o.classList.remove('selected'));
+        option.classList.add('selected');
+    }
     option.addEventListener('click', () => {
         istakaOptions.forEach(o => o.classList.remove('selected'));
         option.classList.add('selected');
         selectedIstaka = option.dataset.istaka;
+        localStorage.setItem('okeyPlayerIstaka', selectedIstaka);
+        sessionStorage.setItem('selectedIstaka', selectedIstaka);
         playSound('click');
     });
 });
 
-// Ses efektleri
+// Ses Efekti
 function playSound(type) {
     try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (!AudioContext) return;
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
 
-        const audioContext = new AudioContext();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-
-        switch (type) {
-            case 'click':
-                oscillator.frequency.value = 800;
-                gainNode.gain.value = 0.1;
-                oscillator.type = 'sine';
-                break;
-            case 'join':
-                oscillator.frequency.value = 600;
-                gainNode.gain.value = 0.15;
-                oscillator.type = 'triangle';
-                break;
-            case 'success':
-                oscillator.frequency.value = 1000;
-                gainNode.gain.value = 0.1;
-                oscillator.type = 'sine';
-                break;
+        if (type === 'click') {
+            osc.frequency.setValueAtTime(450, ctx.currentTime);
+            gain.gain.setValueAtTime(0.12, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.08);
+        } else if (type === 'success') {
+            osc.frequency.setValueAtTime(520, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
+            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.18);
         }
-
-        oscillator.start();
-        oscillator.stop(audioContext.currentTime + 0.1);
-    } catch (e) {
-        console.warn('Ses çalınamadı:', e);
-    }
+    } catch (e) {}
 }
 
-// Rastgele oyuncu ID oluştur (her sekme için benzersiz)
-function generatePlayerId() {
-    return 'Oyuncu' + Math.floor(Math.random() * 9000 + 1000);
+function getPlayerName() {
+    let name = playerNameInput ? playerNameInput.value.trim() : '';
+    if (!name) {
+        name = 'Oyuncu' + Math.floor(1000 + Math.random() * 9000);
+    }
+    localStorage.setItem('okeyPlayerName', name);
+    return name;
 }
 
-// Sayfa yüklendiğinde
-document.addEventListener('DOMContentLoaded', () => {
-    const savedAvatar = localStorage.getItem('okeyPlayerAvatar');
-    const savedName = localStorage.getItem('okeyPlayerName');
+// Hızlı Masaya Otur
+if (quickJoinBtn) {
+    quickJoinBtn.addEventListener('click', () => {
+        const name = getPlayerName();
+        playSound('success');
 
-    // Kaydedilmiş ismi yükle veya benzersiz ID oluştur
-    if (savedName && savedName.trim()) {
-        playerName = savedName;
-        if (playerNameInput) playerNameInput.value = savedName;
-    } else {
-        // Her sekme için benzersiz ID
-        let savedId = sessionStorage.getItem('okeyPlayerId');
-        if (!savedId) {
-            playerName = generatePlayerId();
-            sessionStorage.setItem('okeyPlayerId', playerName);
-        } else {
-            playerName = savedId;
+        socket.emit('joinGame', {
+            playerName: name,
+            avatar: selectedAvatar,
+            istaka: selectedIstaka,
+            teamMode: teamModeToggle ? teamModeToggle.checked : false,
+            stackingMode: stackingModeToggle ? stackingModeToggle.checked : false,
+            penaltyMode: penaltyModeToggle ? penaltyModeToggle.checked : false,
+            roomCode: 'MAIN'
+        });
+    });
+}
+
+// Belirli Masaya Katıl
+window.joinSpecificRoom = function(roomCode, hasPassword) {
+    const name = getPlayerName();
+    if (hasPassword) {
+        pendingJoinRoom = roomCode;
+        if (roomPasswordModal) {
+            enterRoomPasswordInput.value = '';
+            roomPasswordModal.classList.remove('hidden');
         }
+        return;
     }
 
-    if (savedAvatar) {
-        selectedAvatar = savedAvatar;
-        avatarOptions.forEach(o => {
-            o.classList.remove('selected');
-            if (o.dataset.avatar === savedAvatar) {
-                o.classList.add('selected');
-            }
-        });
-    }
-
-    // Kaydedilmiş istaka seçimi
-    const savedIstaka = localStorage.getItem('okeyPlayerIstaka');
-    if (savedIstaka) {
-        selectedIstaka = savedIstaka;
-        istakaOptions.forEach(o => {
-            o.classList.remove('selected');
-            if (o.dataset.istaka === savedIstaka) {
-                o.classList.add('selected');
-            }
-        });
-    }
-});
-
-// Oyuna katıl butonuna tıklama
-joinGameBtn.addEventListener('click', () => {
-    console.log('Join button clicked');
-    playSound('click');
-
-    // İsim input'tan al
-    const inputName = playerNameInput ? playerNameInput.value.trim() : '';
-    if (inputName) {
-        playerName = inputName;
-        localStorage.setItem('okeyPlayerName', playerName);
-    } else {
-        // Boşsa otomatik ID kullan
-        playerName = sessionStorage.getItem('okeyPlayerId') || generatePlayerId();
-    }
-
-    // Avatar ve istaka'yı kaydet
-    localStorage.setItem('okeyPlayerAvatar', selectedAvatar);
-    localStorage.setItem('okeyPlayerIstaka', selectedIstaka);
-    sessionStorage.setItem('selectedIstaka', selectedIstaka);
-
-    const teamMode = teamModeToggle ? teamModeToggle.checked : false;
-    const stackingMode = stackingModeToggle ? stackingModeToggle.checked : false;
-    const penaltyMode = penaltyModeToggle ? penaltyModeToggle.checked : false;
-
-    // Direkt sabit odaya katıl
+    playSound('success');
     socket.emit('joinGame', {
-        playerName,
-        teamMode,
-        stackingMode,
-        penaltyMode,
-        avatar: selectedAvatar
+        playerName: name,
+        avatar: selectedAvatar,
+        istaka: selectedIstaka,
+        teamMode: teamModeToggle ? teamModeToggle.checked : false,
+        stackingMode: stackingModeToggle ? stackingModeToggle.checked : false,
+        penaltyMode: penaltyModeToggle ? penaltyModeToggle.checked : false,
+        roomCode: roomCode
+    });
+};
+
+// Yeni Masa Kur Modal
+if (createRoomModalBtn) {
+    createRoomModalBtn.addEventListener('click', () => {
+        if (createRoomModal) {
+            newRoomNameInput.value = '';
+            newRoomPasswordInput.value = '';
+            createRoomModal.classList.remove('hidden');
+        }
+    });
+}
+
+if (cancelCreateRoomBtn) {
+    cancelCreateRoomBtn.addEventListener('click', () => {
+        if (createRoomModal) createRoomModal.classList.add('hidden');
+    });
+}
+
+if (confirmCreateRoomBtn) {
+    confirmCreateRoomBtn.addEventListener('click', () => {
+        const name = getPlayerName();
+        const roomName = newRoomNameInput.value.trim() || `${name} Masası`;
+        const roomPassword = newRoomPasswordInput.value.trim();
+        const roomCode = 'MASA_' + Math.random().toString(36).substr(2, 6).toUpperCase();
+
+        if (createRoomModal) createRoomModal.classList.add('hidden');
+        playSound('success');
+
+        socket.emit('createRoom', {
+            roomCode,
+            roomName,
+            password: roomPassword,
+            playerName: name,
+            avatar: selectedAvatar,
+            istaka: selectedIstaka,
+            teamMode: teamModeToggle ? teamModeToggle.checked : false,
+            stackingMode: stackingModeToggle ? stackingModeToggle.checked : false,
+            penaltyMode: penaltyModeToggle ? penaltyModeToggle.checked : false
+        });
+    });
+}
+
+// Şifre Giriş Modal Butonları
+if (cancelPasswordBtn) {
+    cancelPasswordBtn.addEventListener('click', () => {
+        if (roomPasswordModal) roomPasswordModal.classList.add('hidden');
+        pendingJoinRoom = null;
+    });
+}
+
+if (confirmPasswordBtn) {
+    confirmPasswordBtn.addEventListener('click', () => {
+        const name = getPlayerName();
+        const password = enterRoomPasswordInput.value.trim();
+        if (roomPasswordModal) roomPasswordModal.classList.add('hidden');
+
+        playSound('success');
+        socket.emit('joinGame', {
+            playerName: name,
+            avatar: selectedAvatar,
+            istaka: selectedIstaka,
+            teamMode: teamModeToggle ? teamModeToggle.checked : false,
+            stackingMode: stackingModeToggle ? stackingModeToggle.checked : false,
+            penaltyMode: penaltyModeToggle ? penaltyModeToggle.checked : false,
+            roomCode: pendingJoinRoom || 'MAIN',
+            password
+        });
+        pendingJoinRoom = null;
+    });
+}
+
+// Aktif Odaları Dinle & Render Et
+socket.on('roomsListUpdate', (rooms) => {
+    if (!roomsListContainer) return;
+    roomsListContainer.innerHTML = '';
+
+    if (!rooms || rooms.length === 0) {
+        roomsListContainer.innerHTML = `
+            <div class="room-item-card" data-room="MAIN">
+                <div class="room-item-left">
+                    <span class="room-item-icon">🀄</span>
+                    <div>
+                        <div class="room-item-name">Ana Oyun Masası</div>
+                        <div class="room-item-details">Klasik 101 • 4 Kişilik • Herkese Açık</div>
+                    </div>
+                </div>
+                <div class="room-item-right">
+                    <span class="room-item-badge">0/4</span>
+                    <button class="room-join-btn" onclick="joinSpecificRoom('MAIN')">Otur</button>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    rooms.forEach(r => {
+        const count = r.players ? r.players.length : 0;
+        const isLocked = !!r.password;
+        const div = document.createElement('div');
+        div.className = 'room-item-card';
+        div.innerHTML = `
+            <div class="room-item-left">
+                <span class="room-item-icon">${isLocked ? '🔒' : '🀄'}</span>
+                <div>
+                    <div class="room-item-name">${r.name || r.code} ${isLocked ? '(Şifreli)' : ''}</div>
+                    <div class="room-item-details">${r.teamMode ? 'Eşli Takım' : 'Bireysel'} • ${r.stackingMode ? 'Katlamalı' : 'Standart'}</div>
+                </div>
+            </div>
+            <div class="room-item-right">
+                <span class="room-item-badge">${count}/4</span>
+                <button class="room-join-btn" onclick="joinSpecificRoom('${r.code}', ${isLocked})">Otur</button>
+            </div>
+        `;
+        roomsListContainer.appendChild(div);
     });
 });
 
-// Socket Olayları
-
-// Odaya katıldığında
+// Odaya Katılma Başarılı
 socket.on('joinedGame', (data) => {
-    playSound('success');
-
-    // Lobi bilgilerini sakla ve game sayfasına yönlendir
     sessionStorage.setItem('lobbyData', JSON.stringify({
-        roomCode: 'MAIN',
+        roomCode: data.roomCode || 'MAIN',
         teamMode: data.teamMode,
         players: data.players,
-        playerName: playerName,
-        isHost: false
+        playerName: localStorage.getItem('okeyPlayerName'),
+        isHost: data.isHost
     }));
-    sessionStorage.setItem('playerName', playerName);
+    sessionStorage.setItem('playerName', localStorage.getItem('okeyPlayerName'));
 
     window.location.href = 'game.html';
 });
 
-// Oyun başladığında
+// Oyun Başladıysa Direkt Masaya Yönlendir
 socket.on('gameStarted', (data) => {
     sessionStorage.setItem('gameData', JSON.stringify(data));
-    sessionStorage.setItem('playerName', playerName);
+    sessionStorage.setItem('playerName', localStorage.getItem('okeyPlayerName'));
     window.location.href = 'game.html';
 });
 
-// Hata
+// Hata Gösterimi
 socket.on('error', (data) => {
-    showError(data.message);
-});
-
-// Hata göster
-function showError(message) {
+    if (!errorToast) return;
     const toastMessage = errorToast.querySelector('.toast-message');
-    toastMessage.textContent = message;
+    if (toastMessage) toastMessage.textContent = data.message || 'Hata oluştu!';
     errorToast.classList.remove('hidden');
-
-    setTimeout(() => {
-        errorToast.classList.add('hidden');
-    }, 3000);
-}
+    setTimeout(() => errorToast.classList.add('hidden'), 3500);
+});

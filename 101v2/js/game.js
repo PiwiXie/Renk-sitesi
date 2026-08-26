@@ -181,8 +181,8 @@ document.addEventListener('DOMContentLoaded', () => {
         showLobby(data);
         connectToLobby(data);
     } else {
-        // Veri yoksa ana sayfaya yönlendir
-        window.location.href = '/';
+        // Veri yoksa lobiye yönlendir
+        window.location.href = 'index.html';
     }
 
     // Seçilen istaka rengini uygula
@@ -2263,13 +2263,6 @@ socket.on('gameFinished', (data) => {
     }
 
     gameEndModal.classList.remove('hidden');
-});
-
-socket.on('gameStarted', (data) => {
-    // Yeni el başladı
-    initializeGame(data);
-    gameEndModal.classList.add('hidden');
-    showToast('Yeni el başladı!', 'info');
 });
 
 socket.on('playerLeft', (data) => {
