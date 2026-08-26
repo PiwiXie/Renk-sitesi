@@ -866,420 +866,779 @@ function rChatListen(chatMsgs) {
 }
 
 // ============================================================
-// 101 OKEY
+// 101 OKEY & DİNAMİK ODA SİSTEMİ
 // ============================================================
-const OKEY_ROOMS = [
-    {id:'oda_1',isim:'Admin Odası 🔒',isAdmin:true},
-    {id:'oda_2',isim:'Oda 1 — Klasik 101',isAdmin:false},
-    {id:'oda_3',isim:'Oda 2 — Klasik 101',isAdmin:false},
-    {id:'oda_4',isim:'Oda 3 — Klasik 101',isAdmin:false},
-    {id:'oda_5',isim:'Oda 4 — Klasik 101',isAdmin:false},
-];
-
-let okeyNick='', curRoomId=null;
-let roomUnsub=null, sohbetUnsub=null;
-let rackSlots=new Array(26).fill(null);
-let dragging=null;
+let okeyNick         = '';
+let curRoomId        = null;
+let curRoomLeader    = '';
+let curRoomData      = null;
+let roomsListUnsub   = null;
+let roomUnsub        = null;
+let sohbetUnsub      = null;
+let rackSlots        = new Array(26).fill(null);
+let dragging         = null;
+let selectedRoomMode = 'klasik';
+let pendingJoinRoom  = null;
+let targetActionPlayer = null;
+let activeLobbyFilter  = 'all';
+let allLoadedRooms     = [];
 
 function setupOkey() {
-    const nickIn    = document.getElementById('okey-nickname-input');
-    const enterBtn  = document.getElementById('okey-enter-lobby-btn');
-    const loginStep = document.getElementById('okey-login-step');
-    const lobbyStep = document.getElementById('okey-lobby-step');
-    const roomStep  = document.getElementById('okey-room-step');
-    const userDisp  = document.getElementById('okey-user-display');
-    const leaveBtn  = document.getElementById('okey-leave-room-btn');
-    const startBtn  = document.getElementById('okey-start-game-btn');
-    const passBtn   = document.getElementById('okey-admin-set-pass-btn');
-    const drawBtn   = document.getElementById('okey-draw-tile-btn');
-    const perBtn    = document.getElementById('okey-open-per-btn');
-    const deckEl    = document.getElementById('okey-draw-deck');
-    const chatForm  = document.getElementById('okey-chat-form');
-    const chatIn    = document.getElementById('okey-chat-input');
-    const chatMsgs  = document.getElementById('okey-chat-messages');
+    const nickIn         = document.getElementById('okey-nickname-input');
+    const enterBtn       = document.getElementById('okey-enter-lobby-btn');
+    const loginStep      = document.getElementById('okey-login-step');
+    const lobbyStep      = document.getElementById('okey-lobby-step');
+    const userDisp       = document.getElementById('okey-user-display');
+    const leaveBtn       = document.getElementById('okey-leave-room-btn');
+    const startBtn       = document.getElementById('okey-start-game-btn');
+    const drawBtn        = document.getElementById('okey-draw-tile-btn');
+    const perBtn         = document.getElementById('okey-open-per-btn');
+    const deckEl         = document.getElementById('okey-draw-deck');
+    const chatForm       = document.getElementById('okey-chat-form');
+    const chatIn         = document.getElementById('okey-chat-input');
+    const chatMsgs       = document.getElementById('okey-chat-messages');
 
-    nickIn?.addEventListener('keydown',e=>{if(e.key==='Enter')enterBtn?.click();});
+    // Modal elements
+    const createModalBtn = document.getElementById('okey-open-create-modal-btn');
+    const emptyCreateBtn = document.getElementById('okey-empty-create-btn');
+    const createModal    = document.getElementById('okey-create-modal');
+    const closeCreateBtn = document.getElementById('okey-close-create-modal');
+    const confirmCreate  = document.getElementById('okey-confirm-create-btn');
+    const newRoomNameIn  = document.getElementById('new-room-name');
+    const newRoomPassIn  = document.getElementById('new-room-pass');
 
-    enterBtn?.addEventListener('click',()=>{
-        const nick=nickIn?.value.trim(); if(!nick){toast('Oyuncu adı gir!','error');return;}
-        okeyNick=nick;
-        if(userDisp) userDisp.innerText=`Oyuncu: ${nick}`;
+    const passModal      = document.getElementById('okey-pass-prompt-modal');
+    const closePassModal = document.getElementById('okey-close-pass-modal');
+    const confirmPassBtn = document.getElementById('okey-confirm-pass-btn');
+    const passInput      = document.getElementById('okey-room-pass-input');
+
+    const playerActionModal = document.getElementById('okey-player-action-modal');
+    const closePlayerModal  = document.getElementById('okey-close-player-modal');
+    const actionKickBtn     = document.getElementById('okey-action-kick-btn');
+    const actionBanBtn      = document.getElementById('okey-action-ban-btn');
+
+    // Arama ve Filtreler
+    const searchInput = document.getElementById('okey-room-search');
+    const filterChips = document.querySelectorAll('.okey-chip');
+
+    nickIn?.addEventListener('keydown', e => { if (e.key === 'Enter') enterBtn?.click(); });
+
+    enterBtn?.addEventListener('click', () => {
+        const nick = nickIn?.value.trim() || (firebaseUser ? firebaseUser.email.split('@')[0] : '');
+        if (!nick) { toast('Lütfen bir oyuncu adı girin!', 'error'); return; }
+        okeyNick = nick;
+        if (userDisp) userDisp.innerText = `Oyuncu: ${nick}`;
         loginStep?.classList.add('hidden');
         lobbyStep?.classList.remove('hidden');
-        loadOkeyRooms();
+        listenAllRooms();
     });
+
+    // Modal aç/kapat
+    const openCreateModal = () => {
+        createModal?.classList.remove('hidden');
+        if (newRoomNameIn) { newRoomNameIn.value = `${okeyNick}'in Masası`; newRoomNameIn.focus(); }
+        if (newRoomPassIn) newRoomPassIn.value = '';
+    };
+    createModalBtn?.addEventListener('click', openCreateModal);
+    emptyCreateBtn?.addEventListener('click', openCreateModal);
+    closeCreateBtn?.addEventListener('click', () => createModal?.classList.add('hidden'));
+
+    // Oyun modu seçimi
+    document.querySelectorAll('.okey-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.okey-mode-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedRoomMode = btn.dataset.mode;
+        });
+    });
+
+    // Oda oluştur
+    confirmCreate?.addEventListener('click', async () => {
+        const name = newRoomNameIn?.value.trim();
+        const pass = newRoomPassIn?.value.trim() || null;
+        if (!name) { toast('Masa adı girin!', 'error'); return; }
+
+        confirmCreate.disabled = true;
+        confirmCreate.textContent = 'Masa kuruluyor...';
+
+        try {
+            const newRoomRef = db.collection('okey_odalari').doc();
+            const roomData = {
+                id: newRoomRef.id,
+                isim: name,
+                lider: okeyNick,
+                sifre: pass,
+                mod: selectedRoomMode,
+                oyuncular: [okeyNick],
+                banned: [],
+                oyunBasladi: false,
+                deste: [],
+                eller: {},
+                sira: okeyNick,
+                atilanTaslar: {},
+                olusturulma: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            await newRoomRef.set(roomData);
+            createModal?.classList.add('hidden');
+            confirmCreate.disabled = false;
+            confirmCreate.textContent = 'Odayı Aç ve Masaya Geç 🚀';
+
+            // Masaya geç
+            enterRoomView(newRoomRef.id, roomData);
+            toast('Masa başarıyla kuruldu! 👑 Lidersiniz.', 'success');
+        } catch (err) {
+            console.error('Oda kurma hatası:', err);
+            confirmCreate.disabled = false;
+            confirmCreate.textContent = 'Odayı Aç ve Masaya Geç 🚀';
+            toast('Masa kurulamadı, tekrar deneyin.', 'error');
+        }
+    });
+
+    // Şifre modalı
+    closePassModal?.addEventListener('click', () => { passModal?.classList.add('hidden'); pendingJoinRoom = null; });
+    confirmPassBtn?.addEventListener('click', () => {
+        if (!pendingJoinRoom) return;
+        const entered = passInput?.value.trim();
+        if (entered === pendingJoinRoom.sifre) {
+            passModal?.classList.add('hidden');
+            const target = pendingJoinRoom;
+            pendingJoinRoom = null;
+            joinRoomDirect(target);
+        } else {
+            toast('Hatalı masa şifresi!', 'error');
+            if (passInput) {
+                passInput.value = '';
+                passInput.style.animation = 'shake 0.4s ease';
+                setTimeout(() => passInput.style.animation = '', 400);
+            }
+        }
+    });
+
+    // Oyuncu Yönetim Modalı (Lider Kick/Ban)
+    closePlayerModal?.addEventListener('click', () => { playerActionModal?.classList.add('hidden'); targetActionPlayer = null; });
+    actionKickBtn?.addEventListener('click', async () => {
+        if (!targetActionPlayer || !curRoomId) return;
+        await kickPlayer(targetActionPlayer);
+        playerActionModal?.classList.add('hidden');
+    });
+    actionBanBtn?.addEventListener('click', async () => {
+        if (!targetActionPlayer || !curRoomId) return;
+        await banPlayer(targetActionPlayer);
+        playerActionModal?.classList.add('hidden');
+    });
+
+    // Arama ve Filtre Dinleyicileri
+    searchInput?.addEventListener('input', () => renderFilteredRooms());
+    filterChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+            filterChips.forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            activeLobbyFilter = chip.dataset.filter;
+            renderFilteredRooms();
+        });
+    });
+
+    // Koltuklara tıklama (Lider oyuncu yönetimi)
+    const attachSeatClick = (seatId, seatRole) => {
+        const seat = document.getElementById(seatId);
+        seat?.addEventListener('click', () => {
+            if (curRoomLeader !== okeyNick) return; // Sadece lider yönetebilir
+            const nameEl = seat.querySelector('.seat-name');
+            const targetName = nameEl?.innerText.trim();
+            if (!targetName || targetName === 'Boş' || targetName.includes('(Sen)')) return;
+
+            targetActionPlayer = targetName;
+            const targetTitle = document.getElementById('okey-target-player-name');
+            if (targetTitle) targetTitle.innerText = `👤 ${targetName}`;
+            playerActionModal?.classList.remove('hidden');
+        });
+    };
+    attachSeatClick('seat-top', 'top');
+    attachSeatClick('seat-left', 'left');
+    attachSeatClick('seat-right', 'right');
 
     leaveBtn?.addEventListener('click', leaveRoom);
     startBtn?.addEventListener('click', startGame);
 
-    passBtn?.addEventListener('click', async()=>{
-        const p=prompt('Yeni oda şifresi (boş = kaldır):'); if(p===null) return;
-        await db.collection('okey_odalari').doc(curRoomId).set({sifre:p},{merge:true});
-        toast(p?'Şifre güncellendi 🔐':'Şifre kaldırıldı','success');
-    });
-
     // Taş çek
-    const doDrawTile = async()=>{
-        if(!curRoomId){toast('Önce bir odaya gir!','error');return;}
-        const ref=db.collection('okey_odalari').doc(curRoomId);
-        const doc=await ref.get(); const data=doc.data();
-        if(!data?.oyunBasladi){toast('Oyun başlamadı!','error');return;}
-        if(data.sira!==okeyNick){toast('Sıra sende değil!','error');return;}
-        if(!data.deste?.length){toast('Destede taş kalmadı!','error');return;}
-        const deste=[...data.deste];
-        const drawn=deste.shift();
-        const empty=rackSlots.findIndex(s=>s===null);
-        if(empty!==-1) rackSlots[empty]=drawn; else rackSlots.push(drawn);
-        const eller={...(data.eller||{})};
-        eller[okeyNick]=rackSlots.filter(Boolean);
-        await ref.update({deste,eller});
+    const doDrawTile = async () => {
+        if (!curRoomId) { toast('Önce bir odaya gir!', 'error'); return; }
+        const ref = db.collection('okey_odalari').doc(curRoomId);
+        const doc = await ref.get();
+        const data = doc.data();
+        if (!data?.oyunBasladi) { toast('Oyun henüz başlamadı!', 'error'); return; }
+        if (data.sira !== okeyNick) { toast('Sıra sizde değil!', 'error'); return; }
+        if (!data.deste?.length) { toast('Destede taş kalmadı!', 'error'); return; }
+
+        const deste = [...data.deste];
+        const drawn = deste.shift();
+        const empty = rackSlots.findIndex(s => s === null);
+        if (empty !== -1) rackSlots[empty] = drawn;
+        else rackSlots.push(drawn);
+
+        const eller = { ...(data.eller || {}) };
+        eller[okeyNick] = rackSlots.filter(Boolean);
+
+        await ref.update({ deste, eller });
         buildRack();
         showTileAnim(drawn);
-        const dc=document.getElementById('okey-deck-count'); if(dc) dc.innerText=`${deste.length}`;
+        const dc = document.getElementById('okey-deck-count');
+        if (dc) dc.innerText = `${deste.length}`;
     };
     drawBtn?.addEventListener('click', doDrawTile);
     deckEl?.addEventListener('click', doDrawTile);
 
     // Per aç
-    perBtn?.addEventListener('click',()=>{
-        const selSlots=[...document.querySelectorAll('.okey-rack-slot')].filter(s=>s.querySelector('.okey-tile.selected'));
-        const idxs=selSlots.map(s=>parseInt(s.dataset.index));
-        const tiles=idxs.map(i=>rackSlots[i]).filter(Boolean);
-        if(tiles.length<3){toast('En az 3 taş seç!','error');return;}
-        if(validatePer(tiles)){
-            idxs.forEach(i=>rackSlots[i]=null);
+    perBtn?.addEventListener('click', () => {
+        const selSlots = [...document.querySelectorAll('.okey-rack-slot')].filter(s => s.querySelector('.okey-tile.selected'));
+        const idxs = selSlots.map(s => parseInt(s.dataset.index));
+        const tiles = idxs.map(i => rackSlots[i]).filter(Boolean);
+        if (tiles.length < 3) { toast('En az 3 taş seçmelisiniz!', 'error'); return; }
+        if (validatePer(tiles)) {
+            idxs.forEach(i => rackSlots[i] = null);
             buildRack();
-            toast(`🎉 Per açıldı! (${tiles.length} taş)`,'success');
-            if(curRoomId){
-                const ref=db.collection('okey_odalari').doc(curRoomId);
-                ref.get().then(doc=>{const eller={...(doc.data()?.eller||{})};eller[okeyNick]=rackSlots.filter(Boolean);ref.update({eller});});
+            toast(`🎉 Per açıldı! (${tiles.length} taş)`, 'success');
+            if (curRoomId) {
+                const ref = db.collection('okey_odalari').doc(curRoomId);
+                ref.get().then(doc => {
+                    const eller = { ...(doc.data()?.eller || {}) };
+                    eller[okeyNick] = rackSlots.filter(Boolean);
+                    ref.update({ eller });
+                });
             }
         } else {
-            toast('Geçersiz per! Seri (aynı renk ardışık) veya takım (aynı sayı farklı renk) olmalı.','error',4000);
+            toast('Geçersiz per! Seri (aynı renk ardışık) veya takım (aynı sayı farklı renk) olmalıdır.', 'error', 4000);
         }
     });
 
     // Chat
-    chatForm?.addEventListener('submit',e=>{
+    chatForm?.addEventListener('submit', async e => {
         e.preventDefault();
-        const msg=chatIn?.value.trim(); if(!msg||!curRoomId) return;
-        db.collection('okey_odalari').doc(curRoomId).collection('sohbet')
-            .add({kullanici:okeyNick,mesaj:msg,zaman:firebase.firestore.FieldValue.serverTimestamp()})
-            .then(()=>{if(chatIn)chatIn.value='';});
+        const msg = chatIn?.value.trim();
+        if (!msg || !curRoomId) return;
+        chatIn.value = '';
+
+        try {
+            await db.collection('okey_odalari').doc(curRoomId).collection('sohbet').add({
+                kullanici: okeyNick,
+                mesaj: msg,
+                isLeader: curRoomLeader === okeyNick,
+                zaman: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        } catch (err) {
+            console.error('Masa sohbet hatası:', err);
+        }
     });
 
     setupThrowArea();
 }
 
-function validatePer(tiles) {
-    if(tiles.length<3) return false;
-    const nonJ=tiles.filter(t=>!t.isSahte);
-    const jokers=tiles.length-nonJ.length;
-    // Takım: aynı sayı, farklı renkler
-    if(nonJ.length>0){
-        const allNum=nonJ.every(t=>t.sayi===nonJ[0].sayi);
-        if(allNum){const uc=new Set(nonJ.map(t=>t.renk));if(uc.size===nonJ.length&&tiles.length<=4)return true;}
-    }
-    // Seri: aynı renk, ardışık
-    if(nonJ.length>0){
-        const allCol=nonJ.every(t=>t.renk===nonJ[0].renk);
-        if(allCol){
-            const sorted=[...nonJ].sort((a,b)=>a.sayi-b.sayi);
-            let jLeft=jokers,ok=true;
-            for(let i=1;i<sorted.length;i++){
-                const diff=sorted[i].sayi-sorted[i-1].sayi-1;
-                if(diff<0){ok=false;break;}
-                if(diff>0){if(jLeft>=diff)jLeft-=diff;else{ok=false;break;}}
-            }
-            if(ok) return true;
-        }
-    }
-    return false;
-}
-
-function showTileAnim(tile) {
-    const wrap=document.createElement('div'); wrap.className='draw-anim-overlay';
-    const el=document.createElement('div'); el.className=`okey-tile tile-${tile.isSahte?'joker':tile.renk} draw-anim-tile`;
-    el.style.cssText='position:static;width:52px;height:74px;font-size:24px;';
-    el.innerText=tile.isSahte?'★':tile.sayi;
-    wrap.appendChild(el); document.body.appendChild(wrap);
-    requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.add('show')));
-    setTimeout(()=>{el.classList.remove('show');el.classList.add('hide');setTimeout(()=>wrap.remove(),400);},900);
-}
-
-function loadOkeyRooms() {
+function listenAllRooms() {
+    if (roomsListUnsub) roomsListUnsub();
     const cont = document.getElementById('okey-rooms-container');
-    if (!cont) return;
-    cont.innerHTML = '';
+    const emptyState = document.getElementById('okey-empty-rooms');
 
-    OKEY_ROOMS.forEach(room => {
-        const card = document.createElement('div');
-        card.className = 'okey-room-card';
-        card.id = 'room-card-' + room.id;
-        // İlk anında render et (ağ beklemeden)
-        card.innerHTML = `
-            <div class="okey-room-card-header">
-                <h4>${esc(room.isim)}</h4>
-                <span class="okey-room-badge" style="color:#22c55e">0/4</span>
-            </div>
-            <p class="desc sub-desc" style="margin:6px 0">${room.isAdmin ? 'Yönetici odası.' : '4 kişilik 101 Okey masası.'}</p>
-            <button class="action-btn okey-join-btn" style="margin-top:10px;">
-                🎲 Masaya Otur
-            </button>`;
-        
-        card.querySelector('.okey-join-btn').onclick = () => joinRoom(room, { oyuncular: [] });
-        cont.appendChild(card);
-
-        // Firestore ile gerçek zamanlı güncelle
-        try {
-            db.collection('okey_odalari').doc(room.id).onSnapshot(doc => {
-                const data = doc.exists ? doc.data() : { oyuncular: [] };
-                const cnt = data.oyuncular?.length || 0;
-                const locked = !!data.sifre;
-                const full = cnt >= 4;
-                card.innerHTML = `
-                    <div class="okey-room-card-header">
-                        <h4>${esc(room.isim)} ${locked ? '🔑' : ''}</h4>
-                        <span class="okey-room-badge" style="color:${full ? '#ef4444' : '#22c55e'}">${cnt}/4</span>
-                    </div>
-                    <p class="desc sub-desc" style="margin:6px 0">${room.isAdmin ? 'Yönetici odası.' : '4 kişilik 101 Okey masası.'}</p>
-                    <button class="action-btn okey-join-btn" style="margin-top:10px;${full ? 'opacity:0.5;cursor:not-allowed;' : ''}">
-                        ${full ? '⛔ Masa Dolu' : '🎲 Masaya Otur'}
-                    </button>`;
-                if (!full) {
-                    card.querySelector('.okey-join-btn').onclick = () => joinRoom(room, data);
-                }
-            }, err => {
-                console.warn('Oda dinleme uyarısı:', err);
-            });
-        } catch (e) {
-            console.error('Oda snapshot hatası:', e);
-        }
+    roomsListUnsub = db.collection('okey_odalari').orderBy('olusturulma', 'desc').onSnapshot(snap => {
+        allLoadedRooms = [];
+        snap.forEach(doc => {
+            allLoadedRooms.push({ id: doc.id, ...doc.data() });
+        });
+        renderFilteredRooms();
+    }, err => {
+        console.warn('Odalar listesi dinlenemedi:', err);
     });
 }
 
-async function joinRoom(room, data) {
-    if(room.isAdmin&&!isAdminLoggedIn()){
-        const sifre=data.sifre||'';
-        if(sifre){
-            const g=prompt('Oda şifresi:'); if(!g) return;
-            if(g!==sifre){toast('Yanlış şifre!','error');return;}
+function renderFilteredRooms() {
+    const cont = document.getElementById('okey-rooms-container');
+    const emptyState = document.getElementById('okey-empty-rooms');
+    const query = document.getElementById('okey-room-search')?.value.toLowerCase().trim() || '';
+    if (!cont) return;
+
+    let filtered = allLoadedRooms.filter(r => {
+        // Arama filtresi
+        if (query && !r.isim?.toLowerCase().includes(query) && !r.lider?.toLowerCase().includes(query)) {
+            return false;
         }
+        // Chip filtreleri
+        if (activeLobbyFilter === 'public' && r.sifre) return false;
+        if (activeLobbyFilter === 'locked' && !r.sifre) return false;
+        if (activeLobbyFilter === 'available' && (r.oyuncular?.length || 0) >= 4) return false;
+        return true;
+    });
+
+    cont.innerHTML = '';
+    if (filtered.length === 0) {
+        if (emptyState) emptyState.classList.remove('hidden');
+        return;
     }
-    const ref=db.collection('okey_odalari').doc(room.id);
-    const doc=await ref.get();
-    let oyuncular=doc.exists&&doc.data().oyuncular?doc.data().oyuncular:[];
-    if(oyuncular.length>=4&&!oyuncular.includes(okeyNick)){toast('Masa dolu!','error');return;}
-    if(!oyuncular.includes(okeyNick)){oyuncular.push(okeyNick);await ref.set({oyuncular},{merge:true});}
-    curRoomId=room.id;
+    if (emptyState) emptyState.classList.add('hidden');
+
+    filtered.forEach(room => {
+        const count = room.oyuncular?.length || 0;
+        const isLocked = !!room.sifre;
+        const isFull = count >= 4;
+        const card = document.createElement('div');
+        card.className = 'okey-room-card';
+
+        card.innerHTML = `
+            <div class="okey-room-card-header">
+                <div>
+                    <h4>${esc(room.isim)} ${isLocked ? '🔒' : ''}</h4>
+                    <div class="okey-room-host-info">
+                        <span>👑 ${esc(room.lider || 'Bilinmiyor')}</span>
+                    </div>
+                </div>
+                <div class="okey-room-badges">
+                    <span class="okey-mode-pill">${room.mod === 'katlamali' ? 'Katlamalı' : 'Klasik'}</span>
+                    <span class="okey-room-badge" style="color:${isFull ? '#ef4444' : '#22c55e'}">${count}/4</span>
+                </div>
+            </div>
+            <button class="action-btn okey-join-btn" style="${isFull ? 'opacity:0.5;cursor:not-allowed;' : 'background:var(--text-color);color:var(--card-bg);'}">
+                ${isFull ? '⛔ Masa Dolu' : (isLocked ? '🔑 Şifreyle Gir' : '🎲 Masaya Otur')}
+            </button>
+        `;
+
+        if (!isFull) {
+            card.querySelector('.okey-join-btn').onclick = () => requestJoinRoom(room);
+        }
+        cont.appendChild(card);
+    });
+}
+
+function requestJoinRoom(room) {
+    if (room.banned?.includes(okeyNick)) {
+        toast('⛔ Bu masadan yasaklandınız (Ban)!', 'error');
+        return;
+    }
+    if (room.sifre) {
+        pendingJoinRoom = room;
+        const passModal = document.getElementById('okey-pass-prompt-modal');
+        const passName = document.getElementById('okey-pass-room-name');
+        const passIn = document.getElementById('okey-room-pass-input');
+        if (passName) passName.innerText = `"${room.isim}" masası şifrelidir.`;
+        if (passIn) passIn.value = '';
+        passModal?.classList.remove('hidden');
+    } else {
+        joinRoomDirect(room);
+    }
+}
+
+async function joinRoomDirect(room) {
+    try {
+        const ref = db.collection('okey_odalari').doc(room.id);
+        const doc = await ref.get();
+        if (!doc.exists) { toast('Bu masa artık mevcut değil!', 'error'); return; }
+
+        const data = doc.data();
+        if (data.banned?.includes(okeyNick)) {
+            toast('⛔ Bu masadan yasaklandınız!', 'error'); return;
+        }
+
+        let oyuncular = data.oyuncular || [];
+        if (oyuncular.length >= 4 && !oyuncular.includes(okeyNick)) {
+            toast('Masa az önce doldu!', 'error'); return;
+        }
+
+        if (!oyuncular.includes(okeyNick)) {
+            oyuncular.push(okeyNick);
+            await ref.update({ oyuncular });
+        }
+
+        enterRoomView(room.id, data);
+    } catch (err) {
+        console.error('Odaya girme hatası:', err);
+        toast('Odaya girilemedi!', 'error');
+    }
+}
+
+function enterRoomView(roomId, initialData) {
+    curRoomId = roomId;
+    curRoomLeader = initialData.lider || '';
+
     document.getElementById('okey-lobby-step')?.classList.add('hidden');
     document.getElementById('okey-room-step')?.classList.remove('hidden');
-    const title=document.getElementById('okey-current-room-title');
-    if(title) title.innerText=room.isim;
-    if(room.isAdmin&&isAdminLoggedIn()) document.getElementById('okey-admin-set-pass-btn')?.classList.remove('hidden');
-    listenRoom(room.id);
-    listenOkeyChat(room.id);
+
+    const title = document.getElementById('okey-current-room-title');
+    if (title) title.innerText = initialData.isim;
+
+    const modeBadge = document.getElementById('okey-room-mode-badge');
+    if (modeBadge) modeBadge.innerText = initialData.mod === 'katlamali' ? 'Katlamalı 101' : 'Klasik 101';
+
+    const hostTag = document.getElementById('okey-chat-host-tag');
+    if (hostTag) hostTag.style.display = (curRoomLeader === okeyNick) ? 'inline-block' : 'none';
+
+    listenRoom(roomId);
+    listenOkeyChat(roomId);
 }
 
 function listenRoom(id) {
-    if(roomUnsub) roomUnsub();
-    roomUnsub=db.collection('okey_odalari').doc(id).onSnapshot(doc=>{
-        if(!doc.exists) return;
-        const data=doc.data();
-        if(!data.oyuncular?.includes(okeyNick)){toast('Masadan çıkarıldınız!','error');leaveRoom();return;}
-        // Sıra yoksa ilk oyuncu ata
-        if(data.oyuncular?.length>0&&(!data.sira||!data.oyuncular.includes(data.sira))){
-            if(data.oyuncular[0]===okeyNick) db.collection('okey_odalari').doc(id).update({sira:data.oyuncular[0]});
+    if (roomUnsub) roomUnsub();
+    roomUnsub = db.collection('okey_odalari').doc(id).onSnapshot(doc => {
+        if (!doc.exists) {
+            toast('Masa kapatıldı.', 'info');
+            leaveRoomLocally();
             return;
         }
-        updateTable(data.oyuncular, id==='oda_1'&&isAdminLoggedIn(), data.sira, data.atilanTaslar||{});
-        // Start btn
-        const startBtn=document.getElementById('okey-start-game-btn');
-        if(startBtn) startBtn.classList.toggle('hidden', !(data.oyuncular.length===4&&!data.oyunBasladi));
-        // Sıra
-        const tb=document.getElementById('okey-turn-indicator'), bb=document.getElementById('bottom-turn-badge');
-        if(data.sira){
-            const mine=data.sira===okeyNick;
-            if(tb){tb.innerText=mine?'🎯 Sıra Sende!':data.sira;tb.className=mine?'okey-turn-badge my-turn':'okey-turn-badge';}
-            if(bb) bb.style.display=mine?'block':'none';
+        const data = doc.data();
+        curRoomData = data;
+        curRoomLeader = data.lider || '';
+
+        // Ban / Kick kontrolü
+        if (data.banned?.includes(okeyNick)) {
+            toast('⛔ Bu masadan yasaklandınız (Ban)!', 'error');
+            leaveRoomLocally();
+            return;
         }
-        // İlk elle yükleme
-        if(data.oyunBasladi&&data.eller?.[okeyNick]){
-            if(rackSlots.every(s=>s===null)){
-                rackSlots=new Array(26).fill(null);
-                data.eller[okeyNick].forEach((t,i)=>{if(i<26)rackSlots[i]=t;});
+        if (!data.oyuncular?.includes(okeyNick)) {
+            toast('Masadan çıkarıldınız.', 'error');
+            leaveRoomLocally();
+            return;
+        }
+
+        // Lider değişimi / gösterimi
+        const hostTag = document.getElementById('okey-chat-host-tag');
+        if (hostTag) hostTag.style.display = (curRoomLeader === okeyNick) ? 'inline-block' : 'none';
+
+        // Sıra yoksa lider başlatır
+        if (data.oyuncular?.length > 0 && (!data.sira || !data.oyuncular.includes(data.sira))) {
+            if (data.lider === okeyNick) {
+                db.collection('okey_odalari').doc(id).update({ sira: data.oyuncular[0] });
+            }
+            return;
+        }
+
+        updateTable(data.oyuncular, curRoomLeader, data.sira, data.atilanTaslar || {});
+
+        // Başlat butonu: Sadece Lider ve 4 kişi varken
+        const startBtn = document.getElementById('okey-start-game-btn');
+        if (startBtn) {
+            const isLeader = curRoomLeader === okeyNick;
+            const canStart = data.oyuncular.length === 4 && !data.oyunBasladi;
+            startBtn.classList.toggle('hidden', !(isLeader && canStart));
+        }
+
+        // Sıra badge
+        const tb = document.getElementById('okey-turn-indicator');
+        const bb = document.getElementById('bottom-turn-badge');
+        if (data.sira) {
+            const isMyTurn = data.sira === okeyNick;
+            if (tb) {
+                tb.innerText = isMyTurn ? '🎯 Sıra Sende!' : `Sıra: ${data.sira}`;
+                tb.className = isMyTurn ? 'okey-turn-badge my-turn' : 'okey-turn-badge';
+            }
+            if (bb) bb.style.display = isMyTurn ? 'block' : 'none';
+        }
+
+        // İlk el dağıtımı
+        if (data.oyunBasladi && data.eller?.[okeyNick]) {
+            if (rackSlots.every(s => s === null)) {
+                rackSlots = new Array(26).fill(null);
+                data.eller[okeyNick].forEach((t, i) => { if (i < 26) rackSlots[i] = t; });
                 buildRack();
-                const indEl=document.getElementById('okey-indicator-tile');
-                if(indEl&&data.gosterge){indEl.innerText=data.gosterge.sayi;indEl.className=`okey-tile-item tile-${data.gosterge.renk}`;}
-                const dc=document.getElementById('okey-deck-count'); if(dc&&data.deste) dc.innerText=data.deste.length;
-                if(data.gosterge){
-                    const okeySayi=data.gosterge.sayi===13?1:parseInt(data.gosterge.sayi)+1;
-                    const info=document.getElementById('okey-info-text');
-                    if(info) info.innerText=`Istakan | Okey: ${data.gosterge.renk} ${okeySayi}`;
+
+                const indEl = document.getElementById('okey-indicator-tile');
+                if (indEl && data.gosterge) {
+                    indEl.innerText = data.gosterge.sayi;
+                    indEl.className = `okey-tile-item tile-${data.gosterge.renk}`;
+                }
+                const dc = document.getElementById('okey-deck-count');
+                if (dc && data.deste) dc.innerText = data.deste.length;
+
+                if (data.gosterge) {
+                    const okeySayi = data.gosterge.sayi === 13 ? 1 : parseInt(data.gosterge.sayi) + 1;
+                    const info = document.getElementById('okey-info-text');
+                    if (info) info.innerText = `Istakan | Okey Taşı: ${data.gosterge.renk} ${okeySayi}`;
                 }
             }
         }
     });
 }
 
-function updateTable(oyuncular, isAdm, sira, atilan={}) {
-    const bot=document.querySelector('#seat-bottom .seat-name'); if(bot) bot.innerText=`${okeyNick} (Sen)`;
-    updateThrowArea(document.getElementById('throw-bottom'),atilan[okeyNick],'Taş At');
-    const others=oyuncular.filter(n=>n!==okeyNick);
-    const seats=[{s:'seat-left',t:'throw-left'},{s:'seat-top',t:'throw-top'},{s:'seat-right',t:'throw-right'}];
-    seats.forEach(({s,t},i)=>{
-        const seat=document.getElementById(s);
-        const nameEl=seat?.querySelector('.seat-name');
-        const kickEl=seat?.querySelector('.okey-kick-btn');
-        const thrEl=document.getElementById(t);
-        const pname=others[i];
-        if(pname){
-            if(nameEl) nameEl.innerText=pname;
+function updateTable(oyuncular, lider, sira, atilan = {}) {
+    const isHost = lider === okeyNick;
+    const botName = document.querySelector('#seat-bottom .seat-name');
+    if (botName) botName.innerText = `${okeyNick} (Sen)`;
+
+    const botCrown = document.getElementById('bottom-crown');
+    if (botCrown) botCrown.classList.toggle('hidden', !isHost);
+
+    updateThrowArea(document.getElementById('throw-bottom'), atilan[okeyNick], 'Taş At');
+
+    const others = oyuncular.filter(n => n !== okeyNick);
+    const seats = [
+        { s: 'seat-left', t: 'throw-left' },
+        { s: 'seat-top', t: 'throw-top' },
+        { s: 'seat-right', t: 'throw-right' }
+    ];
+
+    seats.forEach(({ s, t }, i) => {
+        const seat = document.getElementById(s);
+        const nameEl = seat?.querySelector('.seat-name');
+        const crownEl = seat?.querySelector('.seat-crown');
+        const thrEl = document.getElementById(t);
+        const pname = others[i];
+
+        if (pname) {
+            if (nameEl) nameEl.innerText = pname;
+            if (crownEl) crownEl.classList.toggle('hidden', pname !== lider);
             seat?.classList.add('occupied');
-            seat?.classList.toggle('active-turn', sira===pname);
-            if(kickEl){if(isAdm){kickEl.classList.remove('hidden');kickEl.onclick=()=>kickPlayer(pname);}else kickEl.classList.add('hidden');}
-            updateThrowArea(thrEl,atilan[pname],'—');
+            seat?.classList.toggle('active-turn', sira === pname);
+            updateThrowArea(thrEl, atilan[pname], '—');
         } else {
-            if(nameEl) nameEl.innerText='Boş';
-            seat?.classList.remove('occupied','active-turn');
-            if(kickEl) kickEl.classList.add('hidden');
-            if(thrEl) thrEl.innerHTML='—';
+            if (nameEl) nameEl.innerText = 'Boş';
+            if (crownEl) crownEl.classList.add('hidden');
+            seat?.classList.remove('occupied', 'active-turn');
+            if (thrEl) thrEl.innerHTML = '—';
         }
     });
-    document.getElementById('seat-bottom')?.classList.toggle('active-turn', sira===okeyNick);
+
+    document.getElementById('seat-bottom')?.classList.toggle('active-turn', sira === okeyNick);
 }
 
-function updateThrowArea(el,tile,def) {
-    if(!el) return;
-    el.innerHTML='';
-    if(tile){
-        const d=document.createElement('div');
-        d.className=`okey-tile tile-${tile.isSahte?'joker':tile.renk}`;
-        Object.assign(d.style,{position:'static',width:'32px',height:'46px',fontSize:'14px',boxShadow:'none',cursor:'default'});
-        d.innerText=tile.isSahte?'★':tile.sayi;
+function updateThrowArea(el, tile, def) {
+    if (!el) return;
+    el.innerHTML = '';
+    if (tile) {
+        const d = document.createElement('div');
+        d.className = `okey-tile tile-${tile.isSahte ? 'joker' : tile.renk}`;
+        Object.assign(d.style, { position: 'static', width: '32px', height: '46px', fontSize: '14px', boxShadow: 'none', cursor: 'default' });
+        d.innerText = tile.isSahte ? '★' : tile.sayi;
         el.appendChild(d);
-    } else el.innerText=def;
+    } else {
+        el.innerText = def;
+    }
 }
 
 async function kickPlayer(name) {
-    const ref=db.collection('okey_odalari').doc(curRoomId);
-    const doc=await ref.get();
-    await ref.update({oyuncular:doc.data().oyuncular.filter(p=>p!==name)});
-    toast(`${name} odadan atıldı`,'success');
+    if (!curRoomId) return;
+    try {
+        const ref = db.collection('okey_odalari').doc(curRoomId);
+        const doc = await ref.get();
+        if (!doc.exists) return;
+        const oyuncular = (doc.data().oyuncular || []).filter(p => p !== name);
+        await ref.update({ oyuncular });
+        toast(`${name} masadan atıldı.`, 'success');
+    } catch (err) {
+        toast('Oyuncu atılamadı!', 'error');
+    }
+}
+
+async function banPlayer(name) {
+    if (!curRoomId) return;
+    try {
+        const ref = db.collection('okey_odalari').doc(curRoomId);
+        const doc = await ref.get();
+        if (!doc.exists) return;
+        const data = doc.data();
+        const oyuncular = (data.oyuncular || []).filter(p => p !== name);
+        const banned = [...(data.banned || []), name];
+        await ref.update({ oyuncular, banned });
+        toast(`${name} masadan kalıcı olarak banlandı!`, 'success');
+    } catch (err) {
+        toast('Banlama işlemi başarısız!', 'error');
+    }
 }
 
 async function leaveRoom() {
-    if(roomUnsub) roomUnsub();
-    if(sohbetUnsub) sohbetUnsub();
-    if(curRoomId&&okeyNick){
-        const ref=db.collection('okey_odalari').doc(curRoomId);
-        const doc=await ref.get();
-        if(doc.exists){await ref.update({oyuncular:(doc.data().oyuncular||[]).filter(p=>p!==okeyNick)});}
+    if (!curRoomId) return;
+    const roomIdToLeave = curRoomId;
+    leaveRoomLocally();
+
+    try {
+        const ref = db.collection('okey_odalari').doc(roomIdToLeave);
+        const doc = await ref.get();
+        if (!doc.exists) return;
+
+        const data = doc.data();
+        const oyuncular = (data.oyuncular || []).filter(p => p !== okeyNick);
+
+        if (oyuncular.length === 0) {
+            // Son kişi çıktı -> odayı tamamen sil
+            await ref.delete();
+        } else {
+            // Lider çıktıysa liderliği sıradaki kişiye devret
+            let newLider = data.lider;
+            if (data.lider === okeyNick) {
+                newLider = oyuncular[0];
+            }
+            await ref.update({ oyuncular, lider: newLider });
+        }
+    } catch (err) {
+        console.error('Odadan çıkma hatası:', err);
     }
-    curRoomId=null; rackSlots=new Array(26).fill(null);
+}
+
+function leaveRoomLocally() {
+    if (roomUnsub) roomUnsub();
+    if (sohbetUnsub) sohbetUnsub();
+    curRoomId = null;
+    curRoomLeader = '';
+    curRoomData = null;
+    rackSlots = new Array(26).fill(null);
+
     document.getElementById('okey-room-step')?.classList.add('hidden');
     document.getElementById('okey-lobby-step')?.classList.remove('hidden');
+    listenAllRooms();
 }
 
 async function startGame() {
-    const ref=db.collection('okey_odalari').doc(curRoomId);
-    const doc=await ref.get(); const oyuncular=doc.data().oyuncular;
-    if(oyuncular.length!==4){toast('4 kişi gerekli!','error');return;}
-    let deste=[],id=1;
-    const renkler=['red','blue','black','yellow'];
-    for(let s=0;s<2;s++) renkler.forEach(r=>{for(let n=1;n<=13;n++) deste.push({id:id++,sayi:n,renk:r,isSahte:false});});
-    deste.push({id:id++,sayi:'S',renk:'black',isSahte:true});
-    deste.push({id:id++,sayi:'S',renk:'red',isSahte:true});
-    for(let i=deste.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[deste[i],deste[j]]=[deste[j],deste[i]];}
-    const gosterge=deste.pop();
-    const okeySayi=gosterge.sayi===13?1:gosterge.sayi+1;
-    const baslayan=Math.floor(Math.random()*oyuncular.length);
-    const eller={};
-    oyuncular.forEach((o,i)=>{eller[o]=deste.splice(0,i===baslayan?22:21);});
-    await ref.update({oyunBasladi:true,deste,gosterge,okeyInfo:{sayi:okeySayi,renk:gosterge.renk},eller,sira:oyuncular[baslayan],atilanTaslar:{}});
+    if (!curRoomId) return;
+    const ref = db.collection('okey_odalari').doc(curRoomId);
+    const doc = await ref.get();
+    const oyuncular = doc.data().oyuncular;
+    if (oyuncular.length !== 4) { toast('101 Okey için masada tam 4 kişi olmalıdır!', 'error'); return; }
+
+    let deste = [], id = 1;
+    const renkler = ['red', 'blue', 'black', 'yellow'];
+    for (let s = 0; s < 2; s++) {
+        renkler.forEach(r => {
+            for (let n = 1; n <= 13; n++) deste.push({ id: id++, sayi: n, renk: r, isSahte: false });
+        });
+    }
+    deste.push({ id: id++, sayi: 'S', renk: 'black', isSahte: true });
+    deste.push({ id: id++, sayi: 'S', renk: 'red', isSahte: true });
+
+    for (let i = deste.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deste[i], deste[j]] = [deste[j], deste[i]];
+    }
+
+    const gosterge = deste.pop();
+    const okeySayi = gosterge.sayi === 13 ? 1 : gosterge.sayi + 1;
+    const baslayan = Math.floor(Math.random() * oyuncular.length);
+    const eller = {};
+    oyuncular.forEach((o, i) => { eller[o] = deste.splice(0, i === baslayan ? 22 : 21); });
+
+    await ref.update({
+        oyunBasladi: true,
+        deste,
+        gosterge,
+        okeyInfo: { sayi: okeySayi, renk: gosterge.renk },
+        eller,
+        sira: oyuncular[baslayan],
+        atilanTaslar: {}
+    });
+
     document.getElementById('okey-start-game-btn')?.classList.add('hidden');
-    toast(`Oyun başladı! İlk sıra: ${oyuncular[baslayan]} 🎲`,'success');
+    toast(`Oyun başladı! İlk sıra: ${oyuncular[baslayan]} 🎲`, 'success');
 }
 
 function buildRack() {
-    const row1=document.getElementById('okey-rack-row-1');
-    const row2=document.getElementById('okey-rack-row-2');
-    if(!row1||!row2) return;
-    row1.innerHTML=''; row2.innerHTML='';
-    rackSlots.forEach((tile,idx)=>{
-        const slot=document.createElement('div');
-        slot.className='okey-rack-slot'; slot.dataset.index=idx;
-        if(tile){
-            const el=createTile(tile,idx);
+    const row1 = document.getElementById('okey-rack-row-1');
+    const row2 = document.getElementById('okey-rack-row-2');
+    if (!row1 || !row2) return;
+    row1.innerHTML = '';
+    row2.innerHTML = '';
+
+    rackSlots.forEach((tile, idx) => {
+        const slot = document.createElement('div');
+        slot.className = 'okey-rack-slot';
+        slot.dataset.index = idx;
+        if (tile) {
+            const el = createTile(tile, idx);
             slot.appendChild(el);
         }
-        slot.addEventListener('dragover', e=>{e.preventDefault();slot.classList.add('drag-over');});
-        slot.addEventListener('dragleave', ()=>slot.classList.remove('drag-over'));
-        slot.addEventListener('drop', e=>{
-            e.preventDefault(); slot.classList.remove('drag-over');
-            if(dragging!==null){
-                [rackSlots[idx],rackSlots[dragging]]=[rackSlots[dragging],rackSlots[idx]];
-                dragging=null; buildRack();
+        slot.addEventListener('dragover', e => { e.preventDefault(); slot.classList.add('drag-over'); });
+        slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
+        slot.addEventListener('drop', e => {
+            e.preventDefault();
+            slot.classList.remove('drag-over');
+            if (dragging !== null) {
+                [rackSlots[idx], rackSlots[dragging]] = [rackSlots[dragging], rackSlots[idx]];
+                dragging = null;
+                buildRack();
             }
         });
-        if(idx<13) row1.appendChild(slot); else row2.appendChild(slot);
+        if (idx < 13) row1.appendChild(slot);
+        else row2.appendChild(slot);
     });
 }
 
-function createTile(tile,idx) {
-    const el=document.createElement('div');
-    el.className=`okey-tile tile-${tile.isSahte?'joker':tile.renk} tile-drop`;
-    el.innerText=tile.isSahte?'★':tile.sayi;
-    el.setAttribute('draggable','true');
-    el.onclick=()=>el.classList.toggle('selected');
-    el.addEventListener('dragstart',e=>{dragging=idx;el.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
-    el.addEventListener('dragend',()=>{el.classList.remove('dragging');dragging=null;});
+function createTile(tile, idx) {
+    const el = document.createElement('div');
+    el.className = `okey-tile tile-${tile.isSahte ? 'joker' : tile.renk} tile-drop`;
+    el.innerText = tile.isSahte ? '★' : tile.sayi;
+    el.setAttribute('draggable', 'true');
+    el.onclick = () => el.classList.toggle('selected');
+    el.addEventListener('dragstart', e => {
+        dragging = idx;
+        el.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+    });
+    el.addEventListener('dragend', () => {
+        el.classList.remove('dragging');
+        dragging = null;
+    });
     return el;
 }
 
 function setupThrowArea() {
-    const throwBot=document.getElementById('throw-bottom'); if(!throwBot) return;
-    throwBot.addEventListener('dragover',  e=>{e.preventDefault();throwBot.classList.add('drag-over');});
-    throwBot.addEventListener('dragleave', ()=>throwBot.classList.remove('drag-over'));
-    throwBot.addEventListener('drop', async e=>{
-        e.preventDefault(); throwBot.classList.remove('drag-over');
-        if(dragging===null) return;
-        const ref=db.collection('okey_odalari').doc(curRoomId);
-        const doc=await ref.get(); const data=doc.data();
-        if(!data||data.sira!==okeyNick){toast('Sıra sende değil!','error');dragging=null;return;}
-        const thrown=rackSlots[dragging]; if(!thrown) return;
-        rackSlots[dragging]=null; dragging=null; buildRack();
-        const oyuncular=data.oyuncular;
-        const next=oyuncular[(oyuncular.indexOf(okeyNick)+1)%oyuncular.length];
-        const atilan={...(data.atilanTaslar||{}),[okeyNick]:thrown};
-        const eller={...(data.eller||{}),[okeyNick]:rackSlots};
-        await ref.update({sira:next,atilanTaslar:atilan,eller});
+    const throwBot = document.getElementById('throw-bottom');
+    if (!throwBot) return;
+    throwBot.addEventListener('dragover', e => { e.preventDefault(); throwBot.classList.add('drag-over'); });
+    throwBot.addEventListener('dragleave', () => throwBot.classList.remove('drag-over'));
+    throwBot.addEventListener('drop', async e => {
+        e.preventDefault();
+        throwBot.classList.remove('drag-over');
+        if (dragging === null) return;
+        const ref = db.collection('okey_odalari').doc(curRoomId);
+        const doc = await ref.get();
+        const data = doc.data();
+        if (!data || data.sira !== okeyNick) { toast('Sıra sende değil!', 'error'); dragging = null; return; }
+        const thrown = rackSlots[dragging];
+        if (!thrown) return;
+        rackSlots[dragging] = null;
+        dragging = null;
+        buildRack();
+        const oyuncular = data.oyuncular;
+        const next = oyuncular[(oyuncular.indexOf(okeyNick) + 1) % oyuncular.length];
+        const atilan = { ...(data.atilanTaslar || {}), [okeyNick]: thrown };
+        const eller = { ...(data.eller || {}), [okeyNick]: rackSlots };
+        await ref.update({ sira: next, atilanTaslar: atilan, eller });
     });
 }
 
 function listenOkeyChat(id) {
-    if(sohbetUnsub) sohbetUnsub();
-    const msgs=document.getElementById('okey-chat-messages');
-    sohbetUnsub=db.collection('okey_odalari').doc(id).collection('sohbet')
-        .orderBy('zaman','asc').limitToLast(80)
-        .onSnapshot(snap=>{
-            if(!msgs) return;
-            msgs.innerHTML='';
-            snap.forEach(doc=>{
-                const d=doc.data();
-                const div=document.createElement('div');
-                div.className=`rplace-chat-msg ${d.kullanici===okeyNick?'me':'other'}`;
-                div.innerHTML=`<div class="author">${esc(d.kullanici)}</div><div>${esc(d.mesaj)}</div>`;
+    if (sohbetUnsub) sohbetUnsub();
+    const msgs = document.getElementById('okey-chat-messages');
+    sohbetUnsub = db.collection('okey_odalari').doc(id).collection('sohbet')
+        .orderBy('zaman', 'asc').limitToLast(80)
+        .onSnapshot(snap => {
+            if (!msgs) return;
+            msgs.innerHTML = '';
+            snap.forEach(doc => {
+                const d = doc.data();
+                const isMyMessage = d.kullanici === okeyNick;
+                const isHost = curRoomLeader === okeyNick;
+                const div = document.createElement('div');
+                div.className = `rplace-chat-msg ${isMyMessage ? 'me' : 'other'}`;
+                
+                div.innerHTML = `
+                    <div class="author">
+                        ${d.isLeader ? '👑 ' : ''}${esc(d.kullanici)}
+                        ${isHost ? `<button class="okey-msg-del-btn" title="Mesajı Sil">🗑️</button>` : ''}
+                    </div>
+                    <div>${esc(d.mesaj)}</div>
+                `;
+
+                if (isHost) {
+                    div.querySelector('.okey-msg-del-btn')?.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        db.collection('okey_odalari').doc(id).collection('sohbet').doc(doc.id).delete();
+                    });
+                }
+
                 msgs.appendChild(div);
             });
-            msgs.scrollTop=msgs.scrollHeight;
+            msgs.scrollTop = msgs.scrollHeight;
         });
 }
 
-window.addEventListener('beforeunload',()=>{
-    if(curRoomId&&okeyNick){
-        const ref=db.collection('okey_odalari').doc(curRoomId);
-        ref.get().then(doc=>{if(doc.exists){const o=(doc.data().oyuncular||[]).filter(p=>p!==okeyNick);ref.update({oyuncular:o});}});
+window.addEventListener('beforeunload', () => {
+    if (curRoomId && okeyNick) {
+        leaveRoom();
     }
 });
 
@@ -1353,27 +1712,41 @@ function loadAdminDash() {
         });
     });
 
-    // Okey odaları
-    const okeyList=document.getElementById('admin-okey-list');
-    let totalOkey=0;
-    OKEY_ROOMS.forEach(room=>{
-        db.collection('okey_odalari').doc(room.id).onSnapshot(doc=>{
-            const data=doc.exists?doc.data():{oyuncular:[]};
-            const cnt=data.oyuncular?.length||0;
-            // stat
-            const statEl=document.getElementById('stat-okey');
-            if(statEl){
-                totalOkey=0;
-                OKEY_ROOMS.forEach(r=>{db.collection('okey_odalari').doc(r.id).get().then(d=>{totalOkey+=(d.data()?.oyuncular?.length||0);statEl.innerText=totalOkey;});});
+    // Okey odaları (Dinamik liste)
+    const okeyList = document.getElementById('admin-okey-list');
+    db.collection('okey_odalari').orderBy('olusturulma', 'desc').onSnapshot(snap => {
+        let totalPlayers = 0;
+        if (okeyList) okeyList.innerHTML = '';
+        
+        snap.forEach(doc => {
+            const data = doc.data();
+            const cnt = data.oyuncular?.length || 0;
+            totalPlayers += cnt;
+
+            if (okeyList) {
+                const el = document.createElement('div');
+                el.className = 'admin-room-item';
+                el.innerHTML = `
+                    <div style="display:flex;flex-direction:column;gap:2px">
+                        <span style="font-weight:700">${esc(data.isim || 'İsimsiz Masa')} ${data.sifre ? '🔒' : ''}</span>
+                        <span style="font-size:11px;color:var(--text-muted)">Lider: 👑 ${esc(data.lider || 'Yok')}</span>
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:center">
+                        <span class="admin-player-tag">${cnt}/4</span>
+                        <button class="admin-msg-del" style="padding:2px 6px" title="Odayı Kapat">Kapat</button>
+                    </div>
+                `;
+                el.querySelector('.admin-msg-del')?.addEventListener('click', () => {
+                    if (confirm(`"${data.isim}" masasını kapatmak istediğinize emin misiniz?`)) {
+                        db.collection('okey_odalari').doc(doc.id).delete().then(() => toast('Masa kapatıldı', 'success'));
+                    }
+                });
+                okeyList.appendChild(el);
             }
-            if(!okeyList) return;
-            // Basit liste
-            const old=document.getElementById('admin-room-'+room.id);
-            const el=document.createElement('div'); el.id='admin-room-'+room.id;
-            el.className='admin-room-item';
-            el.innerHTML=`<span style="font-weight:700">${esc(room.isim)}</span><span class="admin-player-tag">${cnt}/4 oyuncu</span>`;
-            if(old) okeyList.replaceChild(el,old); else okeyList.appendChild(el);
         });
+
+        const statEl = document.getElementById('stat-okey');
+        if (statEl) statEl.innerText = totalPlayers;
     });
 }
 

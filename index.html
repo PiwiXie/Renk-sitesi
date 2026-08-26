@@ -381,50 +381,138 @@
             <div class="view-step">
                 <div class="card-header"><span class="game-tag">canlı masa oyunları — 4 kişilik</span></div>
                 <h1 class="main-title small" style="text-align:left">101 Okey</h1>
-                <p class="desc">Canlı odalara katıl, masadaki oyuncularla anlık etkileşim kur ve taşlarını diz!</p>
+                <p class="desc">Canlı odalara katıl, kendi kilitli veya açık masanı kur, arkadaşlarını davet et ve yönet!</p>
                 <div style="margin:20px 0">
                     <input type="text" id="okey-nickname-input" class="chat-input" placeholder="Oyuncu Adın..." maxlength="15" autocomplete="off">
                 </div>
-                <button id="okey-enter-lobby-btn" class="play-btn">Odalara Göz At 🀄</button>
+                <button id="okey-enter-lobby-btn" class="play-btn">Lobiye Giriş Yap 🀄</button>
             </div>
         </div>
 
-        <div id="okey-lobby-step" class="dialed-card okey-card hidden" style="max-width:820px;width:100%">
+        <div id="okey-lobby-step" class="dialed-card okey-card hidden" style="max-width:960px;width:100%">
             <div class="view-step">
-                <div class="card-header">
-                    <span class="game-tag">okey odaları — 4 kişilik zorunlu</span>
-                    <span id="okey-user-display" class="game-tag-sub" style="color:var(--text-color);font-weight:800"></span>
+                <div class="okey-lobby-top-bar">
+                    <div class="okey-lobby-title-area">
+                        <h2 style="font-size:24px;font-weight:800;letter-spacing:-0.5px">101 Masaları</h2>
+                        <span id="okey-user-display" class="game-tag-sub" style="color:var(--text-color);font-weight:800"></span>
+                    </div>
+                    <button id="okey-open-create-modal-btn" class="play-btn okey-create-btn">
+                        <span style="font-size:16px">➕</span> Yeni Masa Kur
+                    </button>
                 </div>
-                <h2 style="margin:10px 0 14px;font-size:22px">Bir Masaya Katıl</h2>
+
+                <!-- Arama ve Filtreler -->
+                <div class="okey-lobby-filters">
+                    <input type="text" id="okey-room-search" class="chat-input okey-search-input" placeholder="🔍 Masa ara..." autocomplete="off">
+                    <div class="okey-filter-chips">
+                        <button class="okey-chip active" data-filter="all">Tümü</button>
+                        <button class="okey-chip" data-filter="public">Açık Odalar</button>
+                        <button class="okey-chip" data-filter="locked">Şifreli 🔒</button>
+                        <button class="okey-chip" data-filter="available">Boş Yer Olanlar</button>
+                    </div>
+                </div>
+
                 <div class="okey-rooms-grid" id="okey-rooms-container"></div>
+                <div id="okey-empty-rooms" class="okey-empty-state hidden">
+                    <div style="font-size:40px;margin-bottom:8px">🀄</div>
+                    <h3>Henüz aktif bir masa yok</h3>
+                    <p style="color:var(--text-muted);font-size:13px;margin:6px 0 14px">İlk masayı sen kurup arkadaşlarını davet edebilirsin!</p>
+                    <button id="okey-empty-create-btn" class="play-btn" style="width:auto;padding:10px 24px">Masa Oluştur</button>
+                </div>
             </div>
         </div>
 
+        <!-- ODA KURMA MODALI -->
+        <div id="okey-create-modal" class="okey-modal-backdrop hidden">
+            <div class="okey-modal-card">
+                <div class="okey-modal-header">
+                    <h3>🀄 Yeni 101 Masası Kur</h3>
+                    <button id="okey-close-create-modal" class="chat-close-btn">&times;</button>
+                </div>
+                <div class="okey-modal-body">
+                    <label class="okey-label">Masa Adı</label>
+                    <input type="text" id="new-room-name" class="chat-input" placeholder="Örn: Şampiyonlar Masası" maxlength="25" autocomplete="off">
+                    
+                    <label class="okey-label" style="margin-top:12px">Masa Şifresi <span style="font-size:11px;color:var(--text-muted)">(İsteğe bağlı, boş bırakılırsa herkese açık)</span></label>
+                    <input type="password" id="new-room-pass" class="chat-input" placeholder="Gizli şifre..." autocomplete="new-password">
+
+                    <label class="okey-label" style="margin-top:12px">Oyun Modu</label>
+                    <div class="okey-mode-selector">
+                        <button type="button" class="okey-mode-btn active" data-mode="klasik">
+                            <b>Klasik 101</b>
+                            <span>Standart per kuralları</span>
+                        </button>
+                        <button type="button" class="okey-mode-btn" data-mode="katlamali">
+                            <b>Katlamalı 101</b>
+                            <span>Açılan pere göre katlanır</span>
+                        </button>
+                    </div>
+
+                    <button id="okey-confirm-create-btn" class="play-btn" style="margin-top:20px">Odayı Aç ve Masaya Geç 🚀</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ŞİFRELİ ODA GİRİŞ MODALI -->
+        <div id="okey-pass-prompt-modal" class="okey-modal-backdrop hidden">
+            <div class="okey-modal-card" style="max-width:380px">
+                <div class="okey-modal-header">
+                    <h3>🔒 Masa Şifresi Gerekli</h3>
+                    <button id="okey-close-pass-modal" class="chat-close-btn">&times;</button>
+                </div>
+                <div class="okey-modal-body">
+                    <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px" id="okey-pass-room-name">Bu masa kilitlidir.</p>
+                    <input type="password" id="okey-room-pass-input" class="chat-input" placeholder="Oda şifresini girin...">
+                    <button id="okey-confirm-pass-btn" class="play-btn" style="margin-top:14px">Masaya Otur</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- OYUNCU YÖNETİM (KICK / BAN) MODALI -->
+        <div id="okey-player-action-modal" class="okey-modal-backdrop hidden">
+            <div class="okey-modal-card" style="max-width:360px">
+                <div class="okey-modal-header">
+                    <h3 id="okey-target-player-name">Oyuncu Yönetimi</h3>
+                    <button id="okey-close-player-modal" class="chat-close-btn">&times;</button>
+                </div>
+                <div class="okey-modal-body" style="display:flex;flex-direction:column;gap:10px">
+                    <p style="font-size:13px;color:var(--text-muted)">Lider olarak bu oyuncuya uygulamak istediğin eylemi seç:</p>
+                    <button id="okey-action-kick-btn" class="action-btn" style="background:#f59e0b;color:#000;font-weight:700">
+                        🚫 Masadan At (Kick)
+                    </button>
+                    <button id="okey-action-ban-btn" class="action-btn" style="background:#ef4444;color:#fff;font-weight:700">
+                        ⛔ Masadan Banla (Tekrar Giremez)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MASA OYUN ALANI -->
         <div id="okey-room-step" class="okey-room-layout hidden">
             <div class="okey-main-area">
                 <div class="okey-room-header">
                     <div class="okey-room-info">
                         <h3 id="okey-current-room-title">Oda</h3>
+                        <span id="okey-room-mode-badge" class="okey-mode-pill">Klasik</span>
                         <span id="okey-room-status-badge" class="badge-new" style="position:static">Canlı</span>
                     </div>
                     <div class="okey-header-actions">
-                        <button id="okey-start-game-btn" class="action-btn hidden" style="width:auto;padding:8px 16px;background:#22c55e;color:#fff">🎲 Oyunu Başlat</button>
-                        <button id="okey-admin-set-pass-btn" class="action-btn hidden" style="width:auto;padding:8px 16px;background:#eab308;color:#000">🔐 Şifre Belirle</button>
-                        <button id="okey-leave-room-btn" class="action-btn" style="width:auto;padding:8px 16px;background:#ef4444;color:#fff">🚪 Çık</button>
+                        <button id="okey-start-game-btn" class="action-btn hidden" style="width:auto;padding:8px 18px;background:#22c55e;color:#fff;font-weight:800">🎲 Oyunu Başlat</button>
+                        <button id="okey-leave-room-btn" class="action-btn" style="width:auto;padding:8px 16px;background:#ef4444;color:#fff">🚪 Masadan Ayrıl</button>
                     </div>
                 </div>
                 <div class="okey-table-container">
                     <div class="okey-seat seat-top" id="seat-top">
-                        <div class="seat-avatar">👤</div><div class="seat-name">Boş</div>
+                        <div class="seat-avatar">👤</div>
+                        <div class="seat-name-wrapper"><span class="seat-name">Boş</span><span class="seat-crown hidden">👑</span></div>
                         <div class="seat-status-text">⚡ Sıra Sende</div>
                         <div class="seat-throw-area" id="throw-top">—</div>
-                        <button class="okey-kick-btn hidden" data-seat="top">At</button>
                     </div>
                     <div class="okey-seat seat-left" id="seat-left">
-                        <div class="seat-avatar">👤</div><div class="seat-name">Boş</div>
+                        <div class="seat-avatar">👤</div>
+                        <div class="seat-name-wrapper"><span class="seat-name">Boş</span><span class="seat-crown hidden">👑</span></div>
                         <div class="seat-status-text">⚡ Sıra Sende</div>
                         <div class="seat-throw-area" id="throw-left">—</div>
-                        <button class="okey-kick-btn hidden" data-seat="left">At</button>
                     </div>
                     <div class="okey-table-center">
                         <div class="okey-deck-stack" id="okey-draw-deck">
@@ -438,13 +526,14 @@
                         <div id="okey-turn-indicator" class="okey-turn-badge">Bekleniyor</div>
                     </div>
                     <div class="okey-seat seat-right" id="seat-right">
-                        <div class="seat-avatar">👤</div><div class="seat-name">Boş</div>
+                        <div class="seat-avatar">👤</div>
+                        <div class="seat-name-wrapper"><span class="seat-name">Boş</span><span class="seat-crown hidden">👑</span></div>
                         <div class="seat-status-text">⚡ Sıra Sende</div>
                         <div class="seat-throw-area" id="throw-right">—</div>
-                        <button class="okey-kick-btn hidden" data-seat="right">At</button>
                     </div>
                     <div class="okey-seat seat-bottom" id="seat-bottom">
-                        <div class="seat-avatar">🧑</div><div class="seat-name">Sen</div>
+                        <div class="seat-avatar">🧑</div>
+                        <div class="seat-name-wrapper"><span class="seat-name">Sen</span><span class="seat-crown hidden" id="bottom-crown">👑</span></div>
                         <div class="seat-status-text" id="bottom-turn-badge">⚡ Sıra Sende</div>
                         <div class="seat-throw-area" id="throw-bottom" title="Taşı sürükle ve bırak">Taş At</div>
                     </div>
@@ -464,10 +553,13 @@
                 </div>
             </div>
             <div class="rplace-right-chat okey-chat-sidebar">
-                <div class="rplace-chat-header"><h3>Masa Sohbeti 💬</h3></div>
+                <div class="rplace-chat-header">
+                    <h3>Masa Sohbeti 💬</h3>
+                    <span id="okey-chat-host-tag" style="font-size:10px;color:#eab308;display:none">👑 Lider Yetkisi</span>
+                </div>
                 <div id="okey-chat-messages" class="rplace-chat-messages"></div>
                 <form id="okey-chat-form" class="rplace-chat-form">
-                    <input type="text" id="okey-chat-input" placeholder="Mesaya yaz..." autocomplete="off" required>
+                    <input type="text" id="okey-chat-input" placeholder="Masaya yaz..." autocomplete="off" required>
                     <button type="submit">↑</button>
                 </form>
             </div>
