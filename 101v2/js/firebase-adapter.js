@@ -1,5 +1,5 @@
 // ============================================================
-// 101 OKEY v2 — FIREBASE REALTIME DATABASE & FIRESTORE ADAPTER
+// 101 OKEY v2 — ROBUST FIREBASE REALTIME ENGINE & GAME ADAPTER
 // ============================================================
 
 const firebaseConfig = {
@@ -26,11 +26,10 @@ class FirebaseSocketAdapter {
         this.isHost = false;
         this.botTimeout = null;
 
-        // Sayfa açıldığında anında bağlan ve oda listesini dinle
         setTimeout(() => {
             this.trigger('connect', {});
             this.listenRoomsList();
-        }, 60);
+        }, 50);
     }
 
     on(event, callback) {
@@ -39,6 +38,7 @@ class FirebaseSocketAdapter {
     }
 
     emit(event, data) {
+        console.log('[SOCKET EMIT]', event, data);
         switch (event) {
             case 'joinGame':
                 this.handleJoinGame(data);
@@ -134,7 +134,7 @@ class FirebaseSocketAdapter {
             stackingMode: !!stackingMode,
             penaltyMode: !!penaltyMode,
             gameStarted: false,
-            gameState: null,
+            gameStateJson: null,
             scores: {},
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         };
@@ -171,7 +171,7 @@ class FirebaseSocketAdapter {
                 stackingMode: !!stackingMode,
                 penaltyMode: !!penaltyMode,
                 gameStarted: false,
-                gameState: null,
+                gameStateJson: null,
                 scores: {}
             };
 
@@ -234,13 +234,27 @@ class FirebaseSocketAdapter {
     }
 
     async handleForceStartGame(data) {
+        console.log('[FORCE START GAME] Called with:', data);
         const targetRoom = data?.roomCode || this.currentRoom || 'MAIN';
         const roomRef = db.collection('okey_v2_rooms').doc(targetRoom);
 
         try {
             const doc = await roomRef.get();
-            if (!doc.exists) return;
-            const room = doc.data();
+            let room = doc.exists ? doc.data() : {
+                code: targetRoom,
+                players: [{
+                    id: this.id,
+                    name: localStorage.getItem('okeyPlayerName') || 'Oyuncu',
+                    avatar: localStorage.getItem('okeyPlayerAvatar') || 'alibicim.png',
+                    istaka: localStorage.getItem('okeyPlayerIstaka') || 'istaka.jpg',
+                    index: 0,
+                    position: 'bottom',
+                    team: null
+                }],
+                teamMode: false,
+                stackingMode: false,
+                penaltyMode: false
+            };
 
             const botNames = ['Ege Fitness (Bot)', 'LeBron James (Bot)', 'Lvbel C5 (Bot)', 'Ali Biçim (Bot)'];
             const botAvatars = ['egefitness.png', 'james.jpg', 'lvblc5.jpg', 'alibicim.png'];
@@ -262,9 +276,33 @@ class FirebaseSocketAdapter {
                 });
             }
 
+            const gameState = this.initGameLogic(room.players);
             room.gameStarted = true;
-            room.gameState = this.initGameLogic(room.players);
+            room.gameStateJson = JSON.stringify(gameState); // NO NESTED ARRAYS ERROR!
+
+            // Firestore'a kaydet
             await roomRef.set(room);
+            console.log('[FORCE START GAME] Successfully saved to Firestore!');
+
+            // Anında yerel olarak da başlat
+            const myName = localStorage.getItem('okeyPlayerName');
+            const myPlayer = (room.players || []).find(p => p.id === this.id || p.name === myName);
+            const myIndex = myPlayer ? myPlayer.index : 0;
+
+            this.trigger('gameStarted', {
+                players: room.players,
+                playerIndex: myIndex,
+                tiles: gameState.playerTiles[myIndex] || [],
+                indicator: gameState.indicator,
+                okey: gameState.okey,
+                currentPlayer: gameState.currentPlayer,
+                teamMode: room.teamMode,
+                scores: room.scores || {},
+                pileCount: gameState.tiles.length,
+                discardPiles: gameState.discardPiles,
+                tableGroups: gameState.tableGroups || [],
+                playerStates: gameState.playerStates || []
+            });
         } catch (e) {
             console.error('handleForceStartGame error:', e);
         }
@@ -304,7 +342,7 @@ class FirebaseSocketAdapter {
         const okeyNumber = indicator.number === 13 ? 1 : indicator.number + 1;
         const okey = { color: indicator.color, number: okeyNumber };
 
-        // Dağıtıcı (ilk oyuncu) 22 taş, diğerleri 21 taş alır
+        // Dağıtıcı (0. oyuncu) 22 taş, diğerleri 21 taş alır
         const currentPlayer = 0;
         const playerTiles = [[], [], [], []];
         for (let p = 0; p < 4; p++) {
@@ -321,7 +359,7 @@ class FirebaseSocketAdapter {
             currentPlayer,
             playerTiles,
             discardPiles: [[], [], [], []],
-            hasDrawn: true, // İlk oyuncu 22 taşla başlar, taş çekmez direkt atar
+            hasDrawn: true,
             tableGroups: [],
             playerStates: [
                 { hasOpened: false, openType: null, openedGroups: [], openScore: 0 },
@@ -353,7 +391,9 @@ class FirebaseSocketAdapter {
                 scores: data.scores || {}
             });
 
-            if (data.gameStarted && data.gameState) {
+            const gameState = data.gameStateJson ? JSON.parse(data.gameStateJson) : data.gameState;
+
+            if (data.gameStarted && gameState) {
                 const myName = localStorage.getItem('okeyPlayerName');
                 const myPlayer = (data.players || []).find(p => p.id === this.id || p.name === myName);
                 const myIndex = myPlayer ? myPlayer.index : 0;
@@ -361,22 +401,22 @@ class FirebaseSocketAdapter {
                 this.trigger('gameStarted', {
                     players: data.players,
                     playerIndex: myIndex,
-                    tiles: data.gameState.playerTiles[myIndex] || [],
-                    indicator: data.gameState.indicator,
-                    okey: data.gameState.okey,
-                    currentPlayer: data.gameState.currentPlayer,
+                    tiles: gameState.playerTiles[myIndex] || [],
+                    indicator: gameState.indicator,
+                    okey: gameState.okey,
+                    currentPlayer: gameState.currentPlayer,
                     teamMode: data.teamMode,
                     scores: data.scores || {},
-                    pileCount: data.gameState.tiles.length,
-                    discardPiles: data.gameState.discardPiles,
-                    tableGroups: data.gameState.tableGroups || [],
-                    playerStates: data.gameState.playerStates || []
+                    pileCount: gameState.tiles.length,
+                    discardPiles: gameState.discardPiles,
+                    tableGroups: gameState.tableGroups || [],
+                    playerStates: gameState.playerStates || []
                 });
 
                 // Eğer sıra bot oyuncudaysa, bot hamlesini tetikle
-                const currPlayerObj = data.players[data.gameState.currentPlayer];
+                const currPlayerObj = data.players[gameState.currentPlayer];
                 if (currPlayerObj && currPlayerObj.isBot && this.isHost) {
-                    this.scheduleBotTurn(roomId, data.gameState.currentPlayer);
+                    this.scheduleBotTurn(roomId, gameState.currentPlayer);
                 }
             }
         }, err => {
@@ -391,26 +431,28 @@ class FirebaseSocketAdapter {
             const doc = await roomRef.get();
             if (!doc.exists) return;
             const room = doc.data();
-            if (!room.gameState || room.gameState.currentPlayer !== botIndex) return;
+            const gameState = room.gameStateJson ? JSON.parse(room.gameStateJson) : room.gameState;
+            if (!gameState || gameState.currentPlayer !== botIndex) return;
 
             // 1. Taş çek (yığından)
-            if (room.gameState.tiles.length > 0) {
-                const drawn = room.gameState.tiles.pop();
-                room.gameState.playerTiles[botIndex].push(drawn);
+            if (gameState.tiles.length > 0) {
+                const drawn = gameState.tiles.pop();
+                gameState.playerTiles[botIndex].push(drawn);
             }
 
             // 2. Rastgele bir taş at
-            const hand = room.gameState.playerTiles[botIndex];
+            const hand = gameState.playerTiles[botIndex];
             if (hand && hand.length > 0) {
                 const discarded = hand.pop();
-                room.gameState.discardPiles[botIndex].push(discarded);
+                gameState.discardPiles[botIndex].push(discarded);
             }
 
             // 3. Sırayı sonraki oyuncuya geçir
-            room.gameState.currentPlayer = (room.gameState.currentPlayer + 1) % 4;
-            room.gameState.hasDrawn = false;
+            gameState.currentPlayer = (gameState.currentPlayer + 1) % 4;
+            gameState.hasDrawn = false;
 
-            await roomRef.update({ gameState: room.gameState });
+            room.gameStateJson = JSON.stringify(gameState);
+            await roomRef.set(room);
         }, 1600);
     }
 
@@ -419,27 +461,29 @@ class FirebaseSocketAdapter {
         const doc = await roomRef.get();
         if (!doc.exists) return;
         const room = doc.data();
-        if (!room.gameState) return;
+        const gameState = room.gameStateJson ? JSON.parse(room.gameStateJson) : room.gameState;
+        if (!gameState) return;
 
         const myName = localStorage.getItem('okeyPlayerName');
         const myPlayer = room.players.find(p => p.id === this.id || p.name === myName);
-        if (!myPlayer || room.gameState.currentPlayer !== myPlayer.index) return;
+        if (!myPlayer || gameState.currentPlayer !== myPlayer.index) return;
 
         let drawnTile = null;
-        if (source === 'pile' && room.gameState.tiles.length > 0) {
-            drawnTile = room.gameState.tiles.pop();
+        if (source === 'pile' && gameState.tiles.length > 0) {
+            drawnTile = gameState.tiles.pop();
         } else if (source === 'discard') {
             const prevPlayer = (myPlayer.index + 3) % 4;
-            const pile = room.gameState.discardPiles[prevPlayer];
+            const pile = gameState.discardPiles[prevPlayer];
             if (pile && pile.length > 0) {
                 drawnTile = pile.pop();
             }
         }
 
         if (drawnTile) {
-            room.gameState.playerTiles[myPlayer.index].push(drawnTile);
-            room.gameState.hasDrawn = true;
-            await roomRef.update({ gameState: room.gameState });
+            gameState.playerTiles[myPlayer.index].push(drawnTile);
+            gameState.hasDrawn = true;
+            room.gameStateJson = JSON.stringify(gameState);
+            await roomRef.set(room);
         }
     }
 
@@ -448,20 +492,22 @@ class FirebaseSocketAdapter {
         const doc = await roomRef.get();
         if (!doc.exists) return;
         const room = doc.data();
-        if (!room.gameState) return;
+        const gameState = room.gameStateJson ? JSON.parse(room.gameStateJson) : room.gameState;
+        if (!gameState) return;
 
         const myName = localStorage.getItem('okeyPlayerName');
         const myPlayer = room.players.find(p => p.id === this.id || p.name === myName);
-        if (!myPlayer || room.gameState.currentPlayer !== myPlayer.index) return;
+        if (!myPlayer || gameState.currentPlayer !== myPlayer.index) return;
 
-        const playerHand = room.gameState.playerTiles[myPlayer.index];
+        const playerHand = gameState.playerTiles[myPlayer.index];
         const discarded = playerHand.splice(tileIndex, 1)[0];
 
         if (discarded) {
-            room.gameState.discardPiles[myPlayer.index].push(discarded);
-            room.gameState.currentPlayer = (room.gameState.currentPlayer + 1) % 4;
-            room.gameState.hasDrawn = false;
-            await roomRef.update({ gameState: room.gameState });
+            gameState.discardPiles[myPlayer.index].push(discarded);
+            gameState.currentPlayer = (gameState.currentPlayer + 1) % 4;
+            gameState.hasDrawn = false;
+            room.gameStateJson = JSON.stringify(gameState);
+            await roomRef.set(room);
         }
     }
 
@@ -470,22 +516,24 @@ class FirebaseSocketAdapter {
         const doc = await roomRef.get();
         if (!doc.exists) return;
         const room = doc.data();
-        if (!room.gameState) return;
+        const gameState = room.gameStateJson ? JSON.parse(room.gameStateJson) : room.gameState;
+        if (!gameState) return;
 
         const myName = localStorage.getItem('okeyPlayerName');
         const myPlayer = room.players.find(p => p.id === this.id || p.name === myName);
         if (!myPlayer) return;
 
         groups.forEach(g => {
-            room.gameState.tableGroups.push({
+            gameState.tableGroups.push({
                 tiles: g,
                 playerIndex: myPlayer.index
             });
         });
 
-        room.gameState.playerStates[myPlayer.index].hasOpened = true;
-        room.gameState.playerStates[myPlayer.index].openType = 'normal';
-        await roomRef.update({ gameState: room.gameState });
+        gameState.playerStates[myPlayer.index].hasOpened = true;
+        gameState.playerStates[myPlayer.index].openType = 'normal';
+        room.gameStateJson = JSON.stringify(gameState);
+        await roomRef.set(room);
     }
 
     async handleOpenPairs({ pairs }) {
@@ -493,23 +541,25 @@ class FirebaseSocketAdapter {
         const doc = await roomRef.get();
         if (!doc.exists) return;
         const room = doc.data();
-        if (!room.gameState) return;
+        const gameState = room.gameStateJson ? JSON.parse(room.gameStateJson) : room.gameState;
+        if (!gameState) return;
 
         const myName = localStorage.getItem('okeyPlayerName');
         const myPlayer = room.players.find(p => p.id === this.id || p.name === myName);
         if (!myPlayer) return;
 
         pairs.forEach(p => {
-            room.gameState.tableGroups.push({
+            gameState.tableGroups.push({
                 tiles: p,
                 playerIndex: myPlayer.index,
                 isPair: true
             });
         });
 
-        room.gameState.playerStates[myPlayer.index].hasOpened = true;
-        room.gameState.playerStates[myPlayer.index].openType = 'pairs';
-        await roomRef.update({ gameState: room.gameState });
+        gameState.playerStates[myPlayer.index].hasOpened = true;
+        gameState.playerStates[myPlayer.index].openType = 'pairs';
+        room.gameStateJson = JSON.stringify(gameState);
+        await roomRef.set(room);
     }
 
     async handleAddTileToGroup({ groupIndex, tile, position }) {
@@ -517,14 +567,16 @@ class FirebaseSocketAdapter {
         const doc = await roomRef.get();
         if (!doc.exists) return;
         const room = doc.data();
-        if (!room.gameState || !room.gameState.tableGroups[groupIndex]) return;
+        const gameState = room.gameStateJson ? JSON.parse(room.gameStateJson) : room.gameState;
+        if (!gameState || !gameState.tableGroups[groupIndex]) return;
 
         if (position === 'start') {
-            room.gameState.tableGroups[groupIndex].tiles.unshift(tile);
+            gameState.tableGroups[groupIndex].tiles.unshift(tile);
         } else {
-            room.gameState.tableGroups[groupIndex].tiles.push(tile);
+            gameState.tableGroups[groupIndex].tiles.push(tile);
         }
-        await roomRef.update({ gameState: room.gameState });
+        room.gameStateJson = JSON.stringify(gameState);
+        await roomRef.set(room);
     }
 
     async handleThrowTomato(data) {
@@ -533,7 +585,16 @@ class FirebaseSocketAdapter {
 
     async handleFinishGame(data) {
         const roomRef = db.collection('okey_v2_rooms').doc(this.currentRoom);
-        await roomRef.update({ 'gameState.finished': true, 'gameState.winner': data });
+        const doc = await roomRef.get();
+        if (!doc.exists) return;
+        const room = doc.data();
+        const gameState = room.gameStateJson ? JSON.parse(room.gameStateJson) : room.gameState;
+        if (gameState) {
+            gameState.finished = true;
+            gameState.winner = data;
+            room.gameStateJson = JSON.stringify(gameState);
+            await roomRef.set(room);
+        }
     }
 
     async handleLeaveRoom() {

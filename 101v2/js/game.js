@@ -284,9 +284,13 @@ function connectToLobby(data) {
     if (lobbyForceStartBtn) {
         lobbyForceStartBtn.onclick = () => {
             playSound('success');
+            const currentLobby = JSON.parse(sessionStorage.getItem('lobbyData') || '{}');
+            const roomCode = (data && data.roomCode) || currentLobby.roomCode || 'MAIN';
+            const playerName = (data && data.playerName) || localStorage.getItem('okeyPlayerName') || 'Oyuncu';
+            console.log('[GAME.JS] Force start clicked for room:', roomCode);
             socket.emit('forceStartGame', {
-                roomCode: data.roomCode,
-                playerName: data.playerName
+                roomCode: roomCode,
+                playerName: playerName
             });
         };
     }
