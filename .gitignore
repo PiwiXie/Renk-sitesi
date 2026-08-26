@@ -1,0 +1,12 @@
+# Gizli dosyalar
+.env
+.env.local
+.env.production
+
+# Sistem dosyaları
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+*.log
