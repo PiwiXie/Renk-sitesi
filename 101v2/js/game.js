@@ -280,6 +280,17 @@ function connectToLobby(data) {
         }, 2000);
     };
 
+    const lobbyForceStartBtn = document.getElementById('lobbyForceStartBtn');
+    if (lobbyForceStartBtn) {
+        lobbyForceStartBtn.onclick = () => {
+            playSound('success');
+            socket.emit('forceStartGame', {
+                roomCode: data.roomCode,
+                playerName: data.playerName
+            });
+        };
+    }
+
     lobbyLeaveBtn.onclick = () => {
         sessionStorage.removeItem('lobbyData');
         sessionStorage.removeItem('gameData');

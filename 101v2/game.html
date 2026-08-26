@@ -5,12 +5,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <base href="/101v2/">
-    <title>101 Okey - Oyun</title>
+    <title>101 Okey v2 — Oyun Masası</title>
     <link rel="stylesheet" href="css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
 <body>
+    <!-- SİTE ÜST MENÜSÜ -->
+    <header class="site-header" style="position:fixed;width:100%;top:0;left:0;z-index:2000">
+        <div class="header-left">
+            <a href="/" class="brand">burakdemircioglu.com.tr</a>
+            <nav class="top-nav">
+                <a href="/color" class="nav-link">Renk hafızası</a>
+                <a href="/weather" class="nav-link">Hava durumu</a>
+                <a href="/rplace" class="nav-link">r/place</a>
+                <a href="/okey" class="nav-link">101 Okey</a>
+                <a href="/101v2" class="nav-link active"><span class="badge-v2">v2</span>101 Okey v2</a>
+            </nav>
+        </div>
+        <div class="header-right">
+            <a href="/101v2" class="header-home-btn">🚪 Lobiden Çık</a>
+        </div>
+    </header>
+
     <div class="background-animation"></div>
 
     <!-- Floating Particles -->
@@ -29,15 +46,15 @@
     <div id="lobbyOverlay" class="lobby-overlay">
         <div class="lobby-container">
             <div class="lobby-header">
-                <h1>🎴 101 Okey</h1>
-                <p>Oyuncular bekleniyor...</p>
+                <h1>🎴 101 Okey Masası</h1>
+                <p>Oyuncular toplanıyor...</p>
             </div>
 
             <div class="lobby-room-code">
-                <div class="lobby-room-code-label">Oda Kodu</div>
-                <div id="lobbyRoomCode" class="lobby-room-code-value">------</div>
+                <div class="lobby-room-code-label">Masa / Oda Kodu</div>
+                <div id="lobbyRoomCode" class="lobby-room-code-value">MAIN</div>
                 <button id="lobbyCopyBtn" class="lobby-room-code-copy">
-                    📋 Kopyala
+                    📋 Kodu Kopyala
                 </button>
             </div>
 
@@ -46,7 +63,7 @@
             </div>
 
             <div class="lobby-players">
-                <h3>Oyuncular <span id="lobbyPlayerCount" class="lobby-players-count">(0/4)</span></h3>
+                <h3>Masadaki Oyuncular <span id="lobbyPlayerCount" class="lobby-players-count">(1/4)</span></h3>
                 <div id="lobbyPlayersGrid" class="lobby-players-grid">
                     <div class="lobby-player-slot empty" data-slot="0">
                         <span class="position-icon">⬇️</span>
@@ -67,19 +84,20 @@
                 </div>
             </div>
 
-            <div class="lobby-waiting">
-                <div class="spinner"></div>
-                <span>4 oyuncu bekleniyor...</span>
+            <!-- Hızlı Başlat Butonu -->
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">
+                <button id="lobbyForceStartBtn" class="btn btn-primary btn-large" style="margin:0;font-size:14px;background:linear-gradient(135deg,#22c55e,#16a34a)">
+                    🎲 Oyunu Başlat (Hemen Masaya Geç)
+                </button>
+                <button id="lobbyLeaveBtn" class="lobby-leave-btn">Masadan Ayrıl</button>
             </div>
-
-            <button id="lobbyLeaveBtn" class="lobby-leave-btn">Odadan Ayrıl</button>
         </div>
     </div>
 
     <div id="gameContainer" class="game-container hidden">
         <!-- Üst Bilgi Çubuğu -->
         <!-- UI Katmanı (Absolute) -->
-        <div class="ui-layer">
+        <div class="ui-layer" style="margin-top:55px">
             <!-- Sol Üst: Skor Tablosu -->
             <div id="scoreboard" class="stats-panel glass-panel">
                 <div class="panel-header">

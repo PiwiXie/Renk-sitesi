@@ -47,9 +47,12 @@ class FirebaseSocketAdapter {
                 break;
             case 'drawFromDiscard':
                 this.handleDrawFromDiscard(data);
-                break;
             case 'discardTile':
                 this.handleDiscardTile(data);
+                break;
+            case 'forceStartGame':
+            case 'startGame':
+                this.handleForceStartGame(data);
                 break;
             case 'openGroup':
             case 'openGroups':
@@ -162,6 +165,41 @@ class FirebaseSocketAdapter {
     async handleRejoinRoom(data) {
         const targetRoom = data?.roomCode || this.currentRoom || 'MAIN';
         this.listenRoom(targetRoom);
+    }
+
+    async handleForceStartGame(data) {
+        const targetRoom = data?.roomCode || this.currentRoom || 'MAIN';
+        const roomRef = db.collection('okey_v2_rooms').doc(targetRoom);
+        try {
+            const doc = await roomRef.get();
+            if (!doc.exists) return;
+            const room = doc.data();
+
+            const botNames = ['Ege Fitness (Bot)', 'LeBron James (Bot)', 'Lvbel C5 (Bot)', 'Ali Biçim (Bot)'];
+            const botAvatars = ['egefitness.png', 'james.jpg', 'lvblc5.jpg', 'alibicim.png'];
+            const positions = ['bottom', 'right', 'top', 'left'];
+
+            while (room.players.length < 4) {
+                const pIndex = room.players.length;
+                const botIdx = pIndex % botNames.length;
+                room.players.push({
+                    id: 'bot_' + Math.random().toString(36).substr(2, 7),
+                    name: botNames[botIdx],
+                    avatar: botAvatars[botIdx],
+                    istaka: 'istaka.jpg',
+                    index: pIndex,
+                    position: positions[pIndex],
+                    isBot: true,
+                    team: room.teamMode ? (pIndex % 2 === 0 ? 1 : 2) : null
+                });
+            }
+
+            room.gameStarted = true;
+            room.gameState = this.initGameLogic(room.players);
+            await roomRef.set(room);
+        } catch (e) {
+            console.error('handleForceStartGame error:', e);
+        }
     }
 
     initGameLogic(players) {

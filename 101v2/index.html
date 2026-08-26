@@ -5,105 +5,132 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <base href="/101v2/">
-    <title>101 Okey - Arkadaşlarınla Oyna</title>
+    <title>101 Okey v2 — burakdemircioglu.com.tr</title>
     <link rel="stylesheet" href="css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
 </head>
 
 <body>
-    <div class="background-animation"></div>
+    <!-- SİTE ÜST MENÜSÜ -->
+    <header class="site-header">
+        <div class="header-left">
+            <a href="/" class="brand">burakdemircioglu.com.tr</a>
+            <nav class="top-nav">
+                <a href="/color" class="nav-link">Renk hafızası</a>
+                <a href="/weather" class="nav-link">Hava durumu</a>
+                <a href="/rplace" class="nav-link">r/place</a>
+                <a href="/okey" class="nav-link">101 Okey</a>
+                <a href="/101v2" class="nav-link active"><span class="badge-v2">v2</span>101 Okey v2</a>
+            </nav>
+        </div>
+        <div class="header-right">
+            <a href="/" class="header-home-btn">🏠 Ana Sayfa</a>
+        </div>
+    </header>
 
-    <div class="container">
-        <header class="header">
-            <h1 class="logo">
-                <span class="logo-icon">🎴</span>
-                <span class="logo-text">101 Okey</span>
-            </h1>
-            <p class="tagline">4 Arkadaş için Gerçek Zamanlı Okey</p>
-        </header>
-
-        <!-- Avatar Seçimi ve Katılma -->
-        <section id="nameSection" class="card">
-            <h2>🎮 Hoş Geldin!</h2>
-            <p class="welcome-text">İsmini yaz, avatarını seç ve oyuna katıl</p>
-
-            <!-- İsim Girişi -->
-            <div class="name-input-container">
-                <input type="text" id="playerNameInput" class="name-input" placeholder="İsmini yaz..." maxlength="15"
-                    autocomplete="off">
+    <div class="app-viewport">
+        <!-- Profil ve Katılma Kartı -->
+        <div class="container">
+            <div class="header-title-box">
+                <h1 class="logo">
+                    <span class="logo-icon">🎴</span>
+                    <span class="logo-text">101 Okey v2</span>
+                </h1>
+                <p class="tagline">Gerçek Zamanlı Çok Oyunculu Masa Oyunu</p>
             </div>
 
-            <!-- Avatar Seçimi -->
-            <div class="avatar-selection">
-                <p class="section-label">Avatarını Seç:</p>
-                <div class="avatar-grid large">
-                    <div class="avatar-option selected" data-avatar="alibicim.png">
-                        <img src="asset/avatars/alibicim.png" alt="Avatar 1">
-                    </div>
-                    <div class="avatar-option" data-avatar="egefitness.png">
-                        <img src="asset/avatars/egefitness.png" alt="Avatar 2">
-                    </div>
-                    <div class="avatar-option" data-avatar="james.jpg">
-                        <img src="asset/avatars/james.jpg" alt="Avatar 3">
-                    </div>
-                    <div class="avatar-option" data-avatar="lvblc5.jpg">
-                        <img src="asset/avatars/lvblc5.jpg" alt="Avatar 4">
+            <!-- Avatar ve Giriş Alanı -->
+            <section id="nameSection" class="card">
+                <div class="card-head-row">
+                    <h2>🎮 Hoş Geldin!</h2>
+                    <span class="badge-pill">4 Kişilik</span>
+                </div>
+                <p class="welcome-text">İsmini yaz, avatarını & ıstakanı seç ve masaya katıl</p>
+
+                <!-- İsim Girişi -->
+                <div class="name-input-container">
+                    <label class="input-label">Oyuncu İsmi</label>
+                    <input type="text" id="playerNameInput" class="name-input" placeholder="İsmini yaz..." maxlength="15" autocomplete="off">
+                </div>
+
+                <!-- Avatar Seçimi -->
+                <div class="avatar-selection">
+                    <p class="section-label">Avatarını Seç:</p>
+                    <div class="avatar-grid">
+                        <div class="avatar-option selected" data-avatar="alibicim.png" title="Ali Biçim">
+                            <img src="asset/avatars/alibicim.png" alt="Avatar 1">
+                        </div>
+                        <div class="avatar-option" data-avatar="egefitness.png" title="Ege Fitness">
+                            <img src="asset/avatars/egefitness.png" alt="Avatar 2">
+                        </div>
+                        <div class="avatar-option" data-avatar="james.jpg" title="LeBron James">
+                            <img src="asset/avatars/james.jpg" alt="Avatar 3">
+                        </div>
+                        <div class="avatar-option" data-avatar="lvblc5.jpg" title="Lvbel C5">
+                            <img src="asset/avatars/lvblc5.jpg" alt="Avatar 4">
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Istaka Renk Seçimi -->
-            <div class="istaka-selection">
-                <p class="section-label">Istaka Rengini Seç:</p>
-                <div class="istaka-grid">
-                    <div class="istaka-option selected" data-istaka="istaka.jpg" title="Klasik Ahşap">
-                        <img src="asset/istaka.jpg" alt="Klasik">
-                        <span class="istaka-label">Klasik</span>
-                    </div>
-                    <div class="istaka-option" data-istaka="istaka_pembe.jpg" title="Pembe">
-                        <img src="asset/istaka_pembe.jpg" alt="Pembe">
-                        <span class="istaka-label">Pembe</span>
+                <!-- Istaka Renk Seçimi -->
+                <div class="istaka-selection">
+                    <p class="section-label">Istaka Deseni:</p>
+                    <div class="istaka-grid">
+                        <div class="istaka-option selected" data-istaka="istaka.jpg" title="Klasik Ahşap">
+                            <img src="asset/istaka.jpg" alt="Klasik">
+                            <span class="istaka-label">Klasik Ahşap</span>
+                        </div>
+                        <div class="istaka-option" data-istaka="istaka_pembe.jpg" title="Pembe Istaka">
+                            <img src="asset/istaka_pembe.jpg" alt="Pembe">
+                            <span class="istaka-label">Pembe Deseni</span>
+                        </div>
                     </div>
                 </div>
+
+                <!-- Kural Seçenekleri -->
+                <div class="rules-toggles-box">
+                    <!-- Takım Modu Toggle -->
+                    <div class="team-mode-toggle">
+                        <label class="toggle-label">
+                            <span class="toggle-text">👥 Takım Modu (Eşli)</span>
+                            <input type="checkbox" id="teamModeToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <p class="toggle-info">Karşılıklı oturan oyuncular aynı takımda yarışır</p>
+                    </div>
+
+                    <!-- Katlamalı Oyun Toggle -->
+                    <div class="team-mode-toggle">
+                        <label class="toggle-label">
+                            <span class="toggle-text">⚡ Katlamalı Açma</span>
+                            <input type="checkbox" id="stackingModeToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <p class="toggle-info">Her sonraki oyuncu daha yüksek puanla el açmalıdır</p>
+                    </div>
+
+                    <!-- Cezalı Oyun Toggle -->
+                    <div class="team-mode-toggle">
+                        <label class="toggle-label">
+                            <span class="toggle-text">🛡️ Cezalı Oyun</span>
+                            <input type="checkbox" id="penaltyModeToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <p class="toggle-info">İşler atma ve ceza puanı kuralları aktiftir</p>
+                    </div>
+                </div>
+
+                <!-- Butonlar -->
+                <div style="display:flex;gap:10px;margin-top:6px">
+                    <button id="joinGameBtn" class="btn btn-primary btn-large">🎮 Oyuna Katıl ve Masaya Otur</button>
+                </div>
+            </section>
+
+            <!-- Hata Mesajı -->
+            <div id="errorToast" class="toast hidden">
+                <span class="toast-icon">⚠️</span>
+                <span class="toast-message"></span>
             </div>
-
-            <!-- Takım Modu Toggle -->
-            <div class="team-mode-toggle">
-                <label class="toggle-label">
-                    <input type="checkbox" id="teamModeToggle">
-                    <span class="toggle-slider"></span>
-                    <span class="toggle-text">Takım Modu</span>
-                </label>
-                <p class="toggle-info">Karşılıklı oturanlar aynı takımda</p>
-            </div>
-
-            <!-- Katlamalı Oyun Toggle -->
-            <div class="team-mode-toggle">
-                <label class="toggle-label">
-                    <input type="checkbox" id="stackingModeToggle">
-                    <span class="toggle-slider"></span>
-                    <span class="toggle-text">Katlamalı Açma</span>
-                </label>
-                <p class="toggle-info">Sonraki oyuncu daha yüksek puanla açmalı</p>
-            </div>
-
-            <!-- Cezalı Oyun Toggle -->
-            <div class="team-mode-toggle">
-                <label class="toggle-label">
-                    <input type="checkbox" id="penaltyModeToggle">
-                    <span class="toggle-slider"></span>
-                    <span class="toggle-text">Cezalı Oyun</span>
-                </label>
-                <p class="toggle-info">Ek ceza kuralları aktif</p>
-            </div>
-
-            <button id="joinGameBtn" class="btn btn-primary btn-large">🎮 Oyuna Katıl</button>
-        </section>
-
-        <!-- Hata Mesajı -->
-        <div id="errorToast" class="toast hidden">
-            <span class="toast-icon">⚠️</span>
-            <span class="toast-message"></span>
         </div>
     </div>
 
