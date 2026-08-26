@@ -235,27 +235,40 @@ function applySelectedIstaka() {
 function updateLobbyPlayers(players, teamMode) {
     const slots = document.querySelectorAll('.lobby-player-slot');
     const playerCount = document.getElementById('lobbyPlayerCount');
+    if (playerCount) playerCount.textContent = `(${players ? players.length : 0}/4)`;
 
-    playerCount.textContent = `(${players.length}/4)`;
+    const posIcons = ['⬇️', '➡️', '⬆️', '⬅️'];
 
     // Önce tüm slotları temizle
-    slots.forEach(slot => {
-        slot.classList.remove('filled', 'team1', 'team2');
-        slot.classList.add('empty');
-        slot.querySelector('.player-name').textContent = 'Bekleniyor...';
+    slots.forEach((slot, idx) => {
+        slot.className = 'lobby-player-slot empty';
+        slot.innerHTML = `
+            <span class="position-icon">${posIcons[idx] || '👤'}</span>
+            <span class="player-name">Bekleniyor...</span>
+        `;
     });
+
+    if (!players || !Array.isArray(players)) return;
 
     // Oyuncuları yerleştir
     players.forEach((player, index) => {
         const slot = slots[index];
         if (slot) {
-            slot.classList.remove('empty');
-            slot.classList.add('filled');
-            slot.querySelector('.player-name').textContent = player.name;
-
+            slot.className = 'lobby-player-slot filled';
             if (teamMode && player.team) {
                 slot.classList.add(`team${player.team}`);
             }
+
+            const avatarSrc = player.avatar ? `asset/avatars/${player.avatar}` : 'asset/avatars/alibicim.png';
+            slot.innerHTML = `
+                <div class="lobby-slot-inner">
+                    <img class="lobby-avatar-thumb" src="${avatarSrc}" alt="${player.name}" onerror="this.src='asset/avatars/alibicim.png'">
+                    <div class="lobby-slot-text">
+                        <span class="player-name">${player.name || 'Oyuncu'}</span>
+                        <span class="player-sub">${player.isBot ? '🤖 Bot' : (player.team ? 'Takım ' + player.team : 'Oyuncu')}</span>
+                    </div>
+                </div>
+            `;
         }
     });
 }
