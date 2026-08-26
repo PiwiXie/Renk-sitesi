@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>101 Okey - Oyun</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="background-animation"></div>
+
+    <!-- Floating Particles -->
+    <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+
+    <!-- 🏠 LOBİ BEKLEME EKRANI -->
+    <div id="lobbyOverlay" class="lobby-overlay">
+        <div class="lobby-container">
+            <div class="lobby-header">
+                <h1>🎴 101 Okey</h1>
+                <p>Oyuncular bekleniyor...</p>
+            </div>
+
+            <div class="lobby-room-code">
+                <div class="lobby-room-code-label">Oda Kodu</div>
+                <div id="lobbyRoomCode" class="lobby-room-code-value">------</div>
+                <button id="lobbyCopyBtn" class="lobby-room-code-copy">
+                    📋 Kopyala
+                </button>
+            </div>
+
+            <div id="lobbyTeamBadge" class="lobby-team-badge hidden">
+                👥 Takım Modu Aktif
+            </div>
+
+            <div class="lobby-players">
+                <h3>Oyuncular <span id="lobbyPlayerCount" class="lobby-players-count">(0/4)</span></h3>
+                <div id="lobbyPlayersGrid" class="lobby-players-grid">
+                    <div class="lobby-player-slot empty" data-slot="0">
+                        <span class="position-icon">⬇️</span>
+                        <span class="player-name">Bekleniyor...</span>
+                    </div>
+                    <div class="lobby-player-slot empty" data-slot="1">
+                        <span class="position-icon">➡️</span>
+                        <span class="player-name">Bekleniyor...</span>
+                    </div>
+                    <div class="lobby-player-slot empty" data-slot="2">
+                        <span class="position-icon">⬆️</span>
+                        <span class="player-name">Bekleniyor...</span>
+                    </div>
+                    <div class="lobby-player-slot empty" data-slot="3">
+                        <span class="position-icon">⬅️</span>
+                        <span class="player-name">Bekleniyor...</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lobby-waiting">
+                <div class="spinner"></div>
+                <span>4 oyuncu bekleniyor...</span>
+            </div>
+
+            <button id="lobbyLeaveBtn" class="lobby-leave-btn">Odadan Ayrıl</button>
+        </div>
+    </div>
+
+    <div id="gameContainer" class="game-container hidden">
+        <!-- Üst Bilgi Çubuğu -->
+        <!-- UI Katmanı (Absolute) -->
+        <div class="ui-layer">
+            <!-- Sol Üst: Skor Tablosu -->
+            <div id="scoreboard" class="stats-panel glass-panel">
+                <div class="panel-header">
+                    <span class="icon">📊</span> Skor Tablosu
+                </div>
+                <div id="scoreList" class="stats-list">
+                    <!-- JS ile dolacak -->
+                </div>
+            </div>
+
+            <!-- Sağ Üst: Oyun Durumu -->
+            <div class="game-status-panel glass-panel">
+                <div id="turnIndicator" class="status-item">
+                    <span class="label">Sıra:</span>
+                    <span id="currentPlayerName" class="value">-</span>
+                </div>
+                <div class="divider"></div>
+                <div class="status-item">
+                    <span class="label">Kalan:</span>
+                    <span id="pileCount" class="value">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Oyun Tahtası -->
+        <div class="game-board" id="gameBoard">
+            <!-- Masa Ortası (Center) -->
+            <div class="table-center">
+                <div class="center-content">
+                    <!-- Yığın -->
+                    <div class="pile-section">
+                        <div id="drawPile" class="pile-stack" title="Taş Çek">
+                            <div class="pile-tile-back"></div>
+                            <div class="pile-tile-back"></div>
+                            <div class="pile-tile-back"></div>
+                            <span class="pile-count-badge" id="pileCountCenter">0</span>
+                        </div>
+                        <span class="area-label">Yığın</span>
+                    </div>
+
+                    <!-- Gösterge Alanı -->
+                    <div class="indicator-section">
+                        <div class="indicator-slot" title="Gösterge">
+                            <span class="slot-label">Gösterge</span>
+                            <div id="indicatorTile" class="tile-placeholder"></div>
+                        </div>
+                        <div class="indicator-slot" title="Okey Taşı">
+                            <span class="slot-label">Okey</span>
+                            <div id="okeyTile" class="tile-placeholder"></div>
+                        </div>
+                    </div>
+
+                    <!-- Atılan Taşlar -->
+                    <div class="discard-section">
+                        <div id="discardPile" class="discard-stack" title="Atılandan Çek">
+                            <!-- JS ile doldurulacak -->
+                            <div class="discard-placeholder">Atılan</div>
+                        </div>
+                        <span class="area-label">Atılan</span>
+                    </div>
+                </div>
+
+                <!-- Açık Taşlar Masası (Tüm Oyuncuların Açtıkları) -->
+                <div id="openedTilesTable" class="opened-tiles-table">
+                    <div id="openedTop" class="opened-player-area top" data-player="top">
+                        <!-- Üst oyuncunun açtıkları -->
+                    </div>
+                    <div id="openedLeft" class="opened-player-area left" data-player="left">
+                        <!-- Sol oyuncunun açtıkları -->
+                    </div>
+                    <div id="openedRight" class="opened-player-area right" data-player="right">
+                        <!-- Sağ oyuncunun açtıkları -->
+                    </div>
+                    <div id="openedBottom" class="opened-player-area bottom" data-player="bottom">
+                        <!-- Alt oyuncunun (sen) açtıkları -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Üst Rakip (Top) -->
+            <div class="opponent-area top">
+                <div class="opponent-hand">
+                    <!-- Kapalı taş temsili -->
+                    <div class="opponent-tile-back"></div>
+                    <div class="opponent-tile-back"></div>
+                    <div class="opponent-tile-back"></div>
+                    <div class="opponent-tile-back" style="transform: translateX(10px)"></div>
+                    <div class="opponent-tile-back" style="transform: translateX(20px)"></div>
+                </div>
+                <div id="topPlayerInfo" class="player-info" data-position="top">
+                    <div class="avatar-wrapper">
+                        <img id="topPlayerAvatar" class="player-avatar" src="" alt="Avatar" style="display:none">
+                        <div class="turn-badge"></div>
+                    </div>
+                    <div class="player-details">
+                        <span class="player-name" id="topPlayerName">-</span>
+                        <span class="player-score">Puan: 0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sol Rakip (Left) -->
+            <div class="opponent-area left">
+                <div class="opponent-hand vertical">
+                    <div class="opponent-tile-back vertical"></div>
+                    <div class="opponent-tile-back vertical"></div>
+                    <div class="opponent-tile-back vertical"></div>
+                </div>
+                <div id="leftPlayerInfo" class="player-info" data-position="left">
+                    <div class="avatar-wrapper">
+                        <img id="leftPlayerAvatar" class="player-avatar" src="" alt="Avatar" style="display:none">
+                        <div class="turn-badge"></div>
+                    </div>
+                    <div class="player-details">
+                        <span class="player-name" id="leftPlayerName">-</span>
+                        <span class="player-score">Puan: 0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sağ Rakip (Right) -->
+            <div class="opponent-area right">
+                <div class="opponent-hand vertical">
+                    <div class="opponent-tile-back vertical"></div>
+                    <div class="opponent-tile-back vertical"></div>
+                    <div class="opponent-tile-back vertical"></div>
+                </div>
+                <div id="rightPlayerInfo" class="player-info" data-position="right">
+                    <div class="avatar-wrapper">
+                        <img id="rightPlayerAvatar" class="player-avatar" src="" alt="Avatar" style="display:none">
+                        <div class="turn-badge"></div>
+                    </div>
+                    <div class="player-details">
+                        <span class="player-name" id="rightPlayerName">-</span>
+                        <span class="player-score">Puan: 0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alt Oyuncu (Kullanıcı) ve Istaka -->
+            <div class="player-area bottom">
+                <!-- Sol Atık (Çekebileceğim) -->
+                <div class="player-discard left-discard" id="myLeftDiscard">
+                    <div class="discard-label">⬅ Çek</div>
+                    <div class="discard-tiles" id="leftDiscardTiles">
+                        <!-- Soldaki oyuncunun attıkları -->
+                    </div>
+                </div>
+
+                <!-- Istaka Yapısı -->
+                <div class="cue-container">
+                    <div class="cue-wood">
+                        <!-- Üst Raf -->
+                        <div id="playerHandTop" class="cue-row top-row" data-row="0">
+                            <!-- Taşlar buraya -->
+                        </div>
+                        <!-- Alt Raf -->
+                        <div id="playerHandBottom" class="cue-row bottom-row" data-row="1">
+                            <!-- Taşlar buraya -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sağ Atık (Attıklarım) -->
+                <div class="player-discard right-discard" id="myRightDiscard">
+                    <div class="discard-label">At ➡</div>
+                    <div class="discard-tiles" id="rightDiscardTiles">
+                        <!-- Benim attıklarım -->
+                    </div>
+                </div>
+
+                <div id="bottomPlayerInfo" class="player-info self" data-position="bottom">
+                    <div class="avatar-wrapper">
+                        <img id="bottomPlayerAvatar" class="player-avatar" src="" alt="Avatar" style="display:none">
+                        <div class="turn-badge"></div>
+                    </div>
+                    <div class="player-details">
+                        <span class="player-name" id="bottomPlayerName">Sen</span>
+                        <span class="tile-count-badge" id="bottomTileCount">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aksiyon Butonları -->
+        <div class="action-buttons">
+            <button id="openHandBtn" class="action-btn open-hand" title="El Aç (101+ puan)">📖 El Aç</button>
+            <button id="finishBtn" class="action-btn finish" disabled title="Oyunu Bitir">✨ Bitir</button>
+        </div>
+
+        <!-- 🍅 Domates Fırlatma Butonu -->
+        <button id="tomatoBtn" class="tomato-btn" title="Domates Fırlat!">
+            🍅
+            <span id="tomatoCounter" class="tomato-counter">3</span>
+        </button>
+
+        <!-- Domates Hedef Seçimi -->
+        <div id="tomatoSelectOverlay" class="tomato-select-overlay hidden">
+            <div class="tomato-select-panel">
+                <h3>🍅 Domates Fırlat!</h3>
+                <p>Kime fırlatmak istiyorsun?</p>
+                <div id="targetButtons" class="target-buttons">
+                    <!-- Hedefler JS ile doldurulacak -->
+                </div>
+                <button id="cancelThrowBtn" class="cancel-throw-btn">Vazgeç</button>
+            </div>
+        </div>
+        <div id="openedTilesPanel" class="opened-tiles-panel hidden">
+            <h4>📖 Açılmış Taşlar</h4>
+            <div id="openedTilesList" class="opened-tiles-list">
+                <!-- Açılmış gruplar buraya -->
+            </div>
+        </div>
+
+        <!-- El Açma Modal -->
+        <div id="openHandModal" class="modal hidden">
+            <div class="modal-content open-hand-modal">
+                <h2>📖 El Aç</h2>
+                <p class="open-hand-info">En az 101 puan değerinde seri/per oluşturmalısın</p>
+
+                <div class="open-hand-score">
+                    Seçilen Puan: <span id="selectedScore">0</span> / 101
+                    <div class="score-bar">
+                        <div id="scoreProgress" class="score-progress"></div>
+                    </div>
+                </div>
+
+                <div id="selectedGroupsDisplay" class="selected-groups-display">
+                    <!-- Seçilen gruplar buraya -->
+                </div>
+
+                <div class="open-hand-instructions">
+                    <p>💡 Taşlara tıklayarak grup oluştur. Her grup en az 3 taştan oluşmalı.</p>
+                    <p>• <strong>Seri:</strong> Aynı renk, ardışık sayılar (örn: 🔵5-6-7)</p>
+                    <p>• <strong>Per:</strong> Farklı renk, aynı sayı (örn: 🔴7-🔵7-⚫7)</p>
+                </div>
+
+                <div class="open-hand-tiles" id="openHandTiles">
+                    <!-- Seçilebilir taşlar -->
+                </div>
+
+                <div class="open-hand-actions">
+                    <button id="addGroupBtn" class="btn btn-secondary" disabled>➕ Grup Ekle</button>
+                    <button id="confirmOpenBtn" class="btn btn-primary" disabled>✅ El Aç</button>
+                    <button id="cancelOpenBtn" class="btn btn-danger">❌ İptal</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 🍅 Domates Fırlatma Butonu -->
+        <button id="tomatoBtn" class="tomato-btn" title="Domates Fırlat!">
+            🍅
+            <span id="tomatoCounter" class="tomato-counter">3</span>
+        </button>
+
+        <!-- Domates Hedef Seçimi -->
+        <div id="tomatoSelectOverlay" class="tomato-select-overlay hidden">
+            <div class="tomato-select-panel">
+                <h3>🍅 Domates Fırlat!</h3>
+                <p>Kime fırlatmak istiyorsun?</p>
+                <div id="targetButtons" class="target-buttons">
+                    <!-- Hedefler JS ile doldurulacak -->
+                </div>
+                <button id="cancelThrowBtn" class="cancel-throw-btn">Vazgeç</button>
+            </div>
+        </div>
+
+        <!-- Oyun Sonu Modal -->
+        <div id="gameEndModal" class="modal hidden">
+            <div class="modal-content">
+                <h2 id="winnerText">🎉 Kazanan!</h2>
+                <div id="finalScores" class="final-scores"></div>
+                <button id="newRoundBtn" class="btn btn-primary btn-large">Yeni El</button>
+            </div>
+        </div>
+
+        <!-- Bildirim Toast -->
+        <div id="gameToast" class="toast hidden">
+            <span class="toast-icon">ℹ️</span>
+            <span class="toast-message"></span>
+        </div>
+    </div>
+
+    <!-- Firebase & Adapter -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <script src="js/firebase-adapter.js"></script>
+    <script src="js/game.js"></script>
+</body>
+
+</html>

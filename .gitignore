@@ -10,3 +10,5 @@ Thumbs.db
 # Editor
 .vscode/settings.json
 *.log
+node_modules/
+online-101-okey-demo-1.1.0/

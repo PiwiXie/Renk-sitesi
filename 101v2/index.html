@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>101 Okey - Arkadaşlarınla Oyna</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="background-animation"></div>
+
+    <div class="container">
+        <header class="header">
+            <h1 class="logo">
+                <span class="logo-icon">🎴</span>
+                <span class="logo-text">101 Okey</span>
+            </h1>
+            <p class="tagline">4 Arkadaş için Gerçek Zamanlı Okey</p>
+        </header>
+
+        <!-- Avatar Seçimi ve Katılma -->
+        <section id="nameSection" class="card">
+            <h2>🎮 Hoş Geldin!</h2>
+            <p class="welcome-text">İsmini yaz, avatarını seç ve oyuna katıl</p>
+
+            <!-- İsim Girişi -->
+            <div class="name-input-container">
+                <input type="text" id="playerNameInput" class="name-input" placeholder="İsmini yaz..." maxlength="15"
+                    autocomplete="off">
+            </div>
+
+            <!-- Avatar Seçimi -->
+            <div class="avatar-selection">
+                <p class="section-label">Avatarını Seç:</p>
+                <div class="avatar-grid large">
+                    <div class="avatar-option selected" data-avatar="alibicim.png">
+                        <img src="asset/avatars/alibicim.png" alt="Avatar 1">
+                    </div>
+                    <div class="avatar-option" data-avatar="egefitness.png">
+                        <img src="asset/avatars/egefitness.png" alt="Avatar 2">
+                    </div>
+                    <div class="avatar-option" data-avatar="james.jpg">
+                        <img src="asset/avatars/james.jpg" alt="Avatar 3">
+                    </div>
+                    <div class="avatar-option" data-avatar="lvblc5.jpg">
+                        <img src="asset/avatars/lvblc5.jpg" alt="Avatar 4">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Istaka Renk Seçimi -->
+            <div class="istaka-selection">
+                <p class="section-label">Istaka Rengini Seç:</p>
+                <div class="istaka-grid">
+                    <div class="istaka-option selected" data-istaka="istaka.jpg" title="Klasik Ahşap">
+                        <img src="asset/istaka.jpg" alt="Klasik">
+                        <span class="istaka-label">Klasik</span>
+                    </div>
+                    <div class="istaka-option" data-istaka="istaka_pembe.jpg" title="Pembe">
+                        <img src="asset/istaka_pembe.jpg" alt="Pembe">
+                        <span class="istaka-label">Pembe</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Takım Modu Toggle -->
+            <div class="team-mode-toggle">
+                <label class="toggle-label">
+                    <input type="checkbox" id="teamModeToggle">
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-text">Takım Modu</span>
+                </label>
+                <p class="toggle-info">Karşılıklı oturanlar aynı takımda</p>
+            </div>
+
+            <!-- Katlamalı Oyun Toggle -->
+            <div class="team-mode-toggle">
+                <label class="toggle-label">
+                    <input type="checkbox" id="stackingModeToggle">
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-text">Katlamalı Açma</span>
+                </label>
+                <p class="toggle-info">Sonraki oyuncu daha yüksek puanla açmalı</p>
+            </div>
+
+            <!-- Cezalı Oyun Toggle -->
+            <div class="team-mode-toggle">
+                <label class="toggle-label">
+                    <input type="checkbox" id="penaltyModeToggle">
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-text">Cezalı Oyun</span>
+                </label>
+                <p class="toggle-info">Ek ceza kuralları aktif</p>
+            </div>
+
+            <button id="joinGameBtn" class="btn btn-primary btn-large">🎮 Oyuna Katıl</button>
+        </section>
+
+        <!-- Hata Mesajı -->
+        <div id="errorToast" class="toast hidden">
+            <span class="toast-icon">⚠️</span>
+            <span class="toast-message"></span>
+        </div>
+    </div>
+
+    <!-- Firebase & Adapter -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <script src="js/firebase-adapter.js"></script>
+    <script src="js/main.js"></script>
+</body>
+
+</html>
