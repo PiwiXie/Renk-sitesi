@@ -42,19 +42,26 @@ auth.onAuthStateChanged(user => {
 // Firebase Auth Email/Password Yardımcıları
 async function fbSignIn(email, password) {
     try {
-        await auth.signInWithEmailAndPassword(email, password);
-        return { ok: true };
+        // Önce giriş dene
+        const res = await auth.signInWithEmailAndPassword(email, password);
+        return { ok: true, user: res.user };
     } catch (err) {
-        if (err.code === 'auth/user-not-found') {
-            // Yeni kullanıcı → kayıt ol
+        // Hesap yoksa veya ilk kez giriş yapılıyorsa otomatik hesap aç
+        if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-login-credentials') {
             try {
-                await auth.createUserWithEmailAndPassword(email, password);
-                return { ok: true };
+                const newRes = await auth.createUserWithEmailAndPassword(email, password);
+                return { ok: true, user: newRes.user };
             } catch (e2) {
+                // Eğer şifre zayıfsa veya email geçersizse
+                if (e2.code === 'auth/weak-password') return { ok: false, msg: 'Şifre en az 6 karakter olmalı!' };
+                if (e2.code === 'auth/email-already-in-use') return { ok: false, msg: 'Girdiğiniz şifre hatalı!' };
+                if (e2.code === 'auth/invalid-email') return { ok: false, msg: 'Geçersiz e-posta formatı!' };
                 return { ok: false, msg: e2.message };
             }
         }
-        return { ok: false, msg: err.code === 'auth/wrong-password' ? 'Şifre hatalı!' : err.message };
+        if (err.code === 'auth/wrong-password') return { ok: false, msg: 'Girdiğiniz şifre hatalı!' };
+        if (err.code === 'auth/invalid-email') return { ok: false, msg: 'Geçersiz e-posta formatı!' };
+        return { ok: false, msg: err.message };
     }
 }
 
@@ -231,8 +238,27 @@ async function fetchLocationName(lat, lon) {
             ? `${d.locality}, ${d.principalSubdivision}` : (d.principalSubdivision || 'İstanbul');
     } catch { const el = document.getElementById('weather-city-district'); if (el) el.innerText = 'İstanbul'; }
 }
-const WMO = {0:{d:'Açık',i:'☀️'},1:{d:'Az Bulutlu',i:'🌤️'},2:{d:'Parçalı Bulutlu',i:'⛅'},3:{d:'Bulutlu',i:'☁️'},45:{d:'Sisli',i:'🌫️'},48:{d:'Sisli',i:'🌫️'},51:{d:'Çiseleyen',i:'🌦️'},53:{d:'Çiseleyen',i:'🌦️'},55:{d:'Çiseleyen',i:'🌦️'},61:{d:'Yağmurlu',i:'🌧️'},63:{d:'Yağmurlu',i:'🌧️'},65:{d:'Kuvvetli Yağmur',i:'🌧️'},71:{d:'Kar',i:'❄️'},73:{d:'Kar',i:'❄️'},75:{d:'Yoğun Kar',i:'🌨️'},95:{d:'Fırtına',i:'⛈️'},96:{d:'Fırtına',i:'⛈️'},99:{d:'Şiddetli Fırtına',i:'⚡'}};
-function wmoCode(c) { return WMO[c] || {d:'Bulutlu',i:'☁️'}; }
+const WMO = {
+    0:  { desc: 'Açık', icon: '☀️' },
+    1:  { desc: 'Az Bulutlu', icon: '🌤️' },
+    2:  { desc: 'Parçalı Bulutlu', icon: '⛅' },
+    3:  { desc: 'Bulutlu', icon: '☁️' },
+    45: { desc: 'Sisli', icon: '🌫️' },
+    48: { desc: 'Sisli', icon: '🌫️' },
+    51: { desc: 'Çiseleyen Yağmur', icon: '🌦️' },
+    53: { desc: 'Çiseleyen Yağmur', icon: '🌦️' },
+    55: { desc: 'Çiseleyen Yağmur', icon: '🌦️' },
+    61: { desc: 'Yağmurlu', icon: '🌧️' },
+    63: { desc: 'Yağmurlu', icon: '🌧️' },
+    65: { desc: 'Kuvvetli Yağmur', icon: '🌧️' },
+    71: { desc: 'Kar Yağışlı', icon: '❄️' },
+    73: { desc: 'Kar Yağışlı', icon: '❄️' },
+    75: { desc: 'Yoğun Kar', icon: '🌨️' },
+    95: { desc: 'Gök Gürültülü Fırtına', icon: '⛈️' },
+    96: { desc: 'Dolu ve Fırtına', icon: '⛈️' },
+    99: { desc: 'Şiddetli Fırtına', icon: '⚡' }
+};
+function wmoCode(c) { return WMO[c] || { desc: 'Bulutlu', icon: '☁️' }; }
 
 // ============================================================
 // RENK OYUNU
@@ -547,12 +573,33 @@ function setupRplace() {
     });
 
     // Chat
-    chatForm?.addEventListener('submit', e=>{
+    chatForm?.addEventListener('submit', async e => {
         e.preventDefault();
-        const msg=chatIn?.value.trim(); if(!msg||!rUsername) return;
-        db.collection('rplace_canvas').doc('main').collection('chat')
-            .add({kullanici:rUsername,mesaj:msg,zaman:firebase.firestore.FieldValue.serverTimestamp()})
-            .then(()=>{if(chatIn)chatIn.value='';});
+        const msg = chatIn?.value.trim();
+        if (!msg) return;
+
+        const senderName = rUsername || chatUser || (firebaseUser ? firebaseUser.email.split('@')[0] : 'Oyuncu');
+        if (!rUsername) rUsername = senderName;
+
+        chatIn.value = '';
+
+        try {
+            await db.collection('rplace_canvas').doc('main').collection('chat').add({
+                kullanici: senderName,
+                mesaj: msg,
+                zaman: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        } catch (err) {
+            console.error('r/place chat gönderme hatası:', err);
+            // Firestore kural hatası veya offline ise yerel olarak göster
+            if (chatMsgs) {
+                const div = document.createElement('div');
+                div.className = 'rplace-chat-msg me';
+                div.innerHTML = `<div class="author">${esc(senderName)}</div><div>${esc(msg)}</div>`;
+                chatMsgs.appendChild(div);
+                chatMsgs.scrollTop = chatMsgs.scrollHeight;
+            }
+        }
     });
 
     // Clear (admin)
@@ -961,27 +1008,53 @@ function showTileAnim(tile) {
 }
 
 function loadOkeyRooms() {
-    const cont=document.getElementById('okey-rooms-container'); if(!cont) return;
-    cont.innerHTML='';
-    OKEY_ROOMS.forEach(room=>{
-        const card=document.createElement('div'); card.className='okey-room-card';
+    const cont = document.getElementById('okey-rooms-container');
+    if (!cont) return;
+    cont.innerHTML = '';
+
+    OKEY_ROOMS.forEach(room => {
+        const card = document.createElement('div');
+        card.className = 'okey-room-card';
+        card.id = 'room-card-' + room.id;
+        // İlk anında render et (ağ beklemeden)
+        card.innerHTML = `
+            <div class="okey-room-card-header">
+                <h4>${esc(room.isim)}</h4>
+                <span class="okey-room-badge" style="color:#22c55e">0/4</span>
+            </div>
+            <p class="desc sub-desc" style="margin:6px 0">${room.isAdmin ? 'Yönetici odası.' : '4 kişilik 101 Okey masası.'}</p>
+            <button class="action-btn okey-join-btn" style="margin-top:10px;">
+                🎲 Masaya Otur
+            </button>`;
+        
+        card.querySelector('.okey-join-btn').onclick = () => joinRoom(room, { oyuncular: [] });
         cont.appendChild(card);
-        db.collection('okey_odalari').doc(room.id).onSnapshot(doc=>{
-            const data=doc.exists?doc.data():{oyuncular:[]};
-            const cnt=data.oyuncular?.length||0;
-            const locked=!!data.sifre;
-            const full=cnt>=4;
-            card.innerHTML=`
-                <div class="okey-room-card-header">
-                    <h4>${esc(room.isim)} ${locked?'🔑':''}</h4>
-                    <span class="okey-room-badge" style="color:${full?'#ef4444':'#22c55e'}">${cnt}/4</span>
-                </div>
-                <p class="desc sub-desc" style="margin:6px 0">${room.isAdmin?'Yönetici odası.':'4 kişilik 101 Okey masası.'}</p>
-                <button class="action-btn okey-join-btn" style="margin-top:10px;${full?'opacity:0.5;cursor:not-allowed;':''}">
-                    ${full?'⛔ Masa Dolu':'🎲 Masaya Otur'}
-                </button>`;
-            if(!full) card.querySelector('.okey-join-btn').onclick=()=>joinRoom(room,data);
-        });
+
+        // Firestore ile gerçek zamanlı güncelle
+        try {
+            db.collection('okey_odalari').doc(room.id).onSnapshot(doc => {
+                const data = doc.exists ? doc.data() : { oyuncular: [] };
+                const cnt = data.oyuncular?.length || 0;
+                const locked = !!data.sifre;
+                const full = cnt >= 4;
+                card.innerHTML = `
+                    <div class="okey-room-card-header">
+                        <h4>${esc(room.isim)} ${locked ? '🔑' : ''}</h4>
+                        <span class="okey-room-badge" style="color:${full ? '#ef4444' : '#22c55e'}">${cnt}/4</span>
+                    </div>
+                    <p class="desc sub-desc" style="margin:6px 0">${room.isAdmin ? 'Yönetici odası.' : '4 kişilik 101 Okey masası.'}</p>
+                    <button class="action-btn okey-join-btn" style="margin-top:10px;${full ? 'opacity:0.5;cursor:not-allowed;' : ''}">
+                        ${full ? '⛔ Masa Dolu' : '🎲 Masaya Otur'}
+                    </button>`;
+                if (!full) {
+                    card.querySelector('.okey-join-btn').onclick = () => joinRoom(room, data);
+                }
+            }, err => {
+                console.warn('Oda dinleme uyarısı:', err);
+            });
+        } catch (e) {
+            console.error('Oda snapshot hatası:', e);
+        }
     });
 }
 
