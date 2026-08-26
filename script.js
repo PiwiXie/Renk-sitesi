@@ -1,17 +1,17 @@
 // ============================================================
 // FIREBASE — burakdemircioglu.com.tr
-// Proje: burakdmrcoglu11
+// Proje: renksitesi
 // API anahtarını Firebase Console'dan kısıtla:
 // console.firebase.google.com → API Key → HTTP Referrers
 // ============================================================
 const firebaseConfig = {
-    apiKey: "AIzaSyCXphC--uF5LLjEiBxD2pT2-UzGVcFXt34",
-    authDomain: "burakdmrcoglu11.firebaseapp.com",
-    projectId: "burakdmrcoglu11",
-    storageBucket: "burakdmrcoglu11.firebasestorage.app",
-    messagingSenderId: "406084996472",
-    appId: "1:406084996472:web:d4f33f939c4825e2b3cc8d",
-    measurementId: "G-WHSWTZ2DWL"
+    apiKey: "AIzaSyBqNscnlBWW8BKvtv4SXqyqAajlurFdOZ8",
+    authDomain: "renksitesi.firebaseapp.com",
+    projectId: "renksitesi",
+    storageBucket: "renksitesi.firebasestorage.app",
+    messagingSenderId: "504044698335",
+    appId: "1:504044698335:web:fb630d11ea52c3de9f876a",
+    measurementId: "G-97TSCB6QV6"
 };
 if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db   = firebase.firestore();
