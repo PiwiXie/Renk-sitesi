@@ -13,11 +13,112 @@
     <meta property="og:url" content="https://burakdemircioglu.com.tr/">
     <meta property="og:type" content="website">
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* Panel animasyonları */
+        @keyframes panelIn {
+            from { opacity: 0; transform: translateY(20px) scale(0.98); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes panelOut {
+            from { opacity: 1; }
+            to   { opacity: 0; }
+        }
+        @keyframes loadPulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+        @keyframes loadBar   { from{transform:scaleX(0)} to{transform:scaleX(1)} }
+        @keyframes cardIn    { from{opacity:0;transform:translateY(28px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes glowPulse { 0%,100%{box-shadow:0 0 8px rgba(34,197,94,0.3)}50%{box-shadow:0 0 22px rgba(34,197,94,0.7)} }
+        @keyframes tileDrop  { 0%{transform:translateY(-40px) scale(1.2);opacity:0}60%{transform:translateY(4px) scale(0.98)}100%{transform:translateY(0) scale(1);opacity:1} }
+        @keyframes badgePulse{ 0%,100%{opacity:1}50%{opacity:0.6} }
+        @keyframes dotPulse  { 0%,100%{box-shadow:0 0 5px #22c55e}50%{box-shadow:0 0 14px #22c55e,0 0 28px rgba(34,197,94,0.4)} }
+        @keyframes seatGlow  { 0%,100%{border-color:rgba(34,197,94,0.5)}50%{border-color:#22c55e;box-shadow:0 0 16px rgba(34,197,94,0.5)} }
+        @keyframes turnBadge { 0%,100%{transform:scale(1)}50%{transform:scale(1.05)} }
+        @keyframes adminIn   { from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)} }
+        @keyframes shake     { 0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)} }
 
-    <!-- Firebase Compat Libraries -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+        /* Loading */
+        #loading-screen {
+            position:fixed;inset:0;z-index:9999;
+            background:#080808;
+            display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;
+            transition:opacity 0.5s ease,visibility 0.5s ease;
+        }
+        #loading-screen.fade-out{opacity:0;visibility:hidden;pointer-events:none}
+        .loading-brand{font-family:'Plus Jakarta Sans',sans-serif;font-size:32px;font-weight:800;color:#fff;letter-spacing:-1.5px;animation:loadPulse 1.4s ease infinite}
+        .loading-bar-wrap{width:180px;height:2px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden}
+        .loading-bar-fill{height:100%;background:#fff;transform-origin:left;animation:loadBar 0.8s cubic-bezier(0.16,1,0.3,1) 0.3s forwards;transform:scaleX(0)}
+
+        /* Panel animasyonu */
+        .app-panel:not(.hidden){animation:panelIn 0.45s cubic-bezier(0.16,1,0.3,1) forwards}
+
+        /* Home card stagger */
+        .home-card{opacity:0;animation:cardIn 0.55s cubic-bezier(0.16,1,0.3,1) forwards}
+        .home-card:nth-child(1){animation-delay:.06s}
+        .home-card:nth-child(2){animation-delay:.14s}
+        .home-card:nth-child(3){animation-delay:.22s}
+        .home-card:nth-child(4){animation-delay:.30s}
+        .home-card:nth-child(5){animation-delay:.38s}
+
+        /* Tile drop anim */
+        .tile-drop{animation:tileDrop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards}
+
+        /* Okey active seat */
+        .okey-seat.active-turn{animation:seatGlow 2s ease infinite;border-color:#22c55e!important}
+        .okey-seat.active-turn .seat-status-text{display:block!important;animation:badgePulse 1.5s ease infinite}
+        .okey-turn-badge.my-turn{animation:turnGlow 2s ease infinite}
+        @keyframes turnGlow{0%,100%{box-shadow:0 0 8px rgba(34,197,94,0.4)}50%{box-shadow:0 0 22px rgba(34,197,94,0.8)}}
+
+        /* Toast */
+        .toast{
+            position:fixed;bottom:32px;left:50%;
+            transform:translateX(-50%) translateY(90px);
+            background:rgba(18,18,18,0.95);backdrop-filter:blur(16px);
+            color:#fff;padding:12px 24px;border-radius:100px;
+            font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:600;
+            border:1px solid rgba(255,255,255,0.1);z-index:99999;
+            transition:transform 0.38s cubic-bezier(0.34,1.56,0.64,1),opacity 0.3s ease;
+            opacity:0;white-space:nowrap;pointer-events:none;
+        }
+        .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+        .toast.toast-success{border-color:rgba(34,197,94,0.4);background:rgba(10,30,15,0.97)}
+        .toast.toast-error{border-color:rgba(239,68,68,0.4);background:rgba(30,8,8,0.97)}
+        .toast.toast-info{border-color:rgba(99,102,241,0.4)}
+
+        /* Draw animation */
+        .draw-anim-overlay{position:fixed;inset:0;pointer-events:none;z-index:9000;display:flex;align-items:center;justify-content:center}
+        .draw-anim-tile{transform:scale(0);opacity:0;transition:all 0.35s cubic-bezier(0.34,1.56,0.64,1)}
+        .draw-anim-tile.show{transform:scale(1.6);opacity:1}
+        .draw-anim-tile.hide{transform:scale(0.7) translateY(-50px);opacity:0;transition:all 0.3s ease}
+
+        /* Admin */
+        .admin-container{width:100%;min-height:100%;display:flex;align-items:center;justify-content:center;padding:20px}
+        .admin-card{background:var(--card-bg);border:1px solid var(--border-color);border-radius:28px;padding:40px;max-width:420px;width:100%;text-align:center;display:flex;flex-direction:column;gap:18px;box-shadow:0 24px 60px rgba(0,0,0,0.4);animation:adminIn 0.4s cubic-bezier(0.16,1,0.3,1)}
+        .admin-icon{font-size:52px}
+        .admin-card h2{font-size:26px;font-weight:800;letter-spacing:-0.5px}
+        .admin-card p{font-size:14px;color:var(--text-muted)}
+        .admin-dashboard{width:100%;max-width:1100px;display:flex;flex-direction:column;gap:16px;padding:16px;animation:adminIn 0.4s ease}
+        .admin-header{display:flex;justify-content:space-between;align-items:center;background:var(--card-bg);border:1px solid var(--border-color);border-radius:16px;padding:16px 20px}
+        .admin-header h2{font-size:20px;font-weight:800}
+        .admin-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+        .admin-stat-card{background:var(--card-bg);border:1px solid var(--border-color);border-radius:16px;padding:18px;text-align:center}
+        .admin-stat-num{font-size:36px;font-weight:800;letter-spacing:-1px}
+        .admin-stat-label{font-size:12px;color:var(--text-muted);font-weight:600;margin-top:4px}
+        .admin-sections{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+        .admin-section{background:var(--card-bg);border:1px solid var(--border-color);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px}
+        .admin-section h3{font-size:15px;font-weight:700;margin-bottom:4px}
+        .admin-msg-list{max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;scrollbar-width:thin}
+        .admin-msg-item{display:flex;justify-content:space-between;align-items:flex-start;background:var(--button-bg);border-radius:10px;padding:8px 12px;font-size:13px;gap:8px}
+        .admin-msg-text{flex:1;word-break:break-word}
+        .admin-msg-del{background:#ef4444;border:none;color:#fff;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;font-weight:700;flex-shrink:0;transition:background 0.2s}
+        .admin-msg-del:hover{background:#dc2626}
+        .admin-room-item{background:var(--button-bg);border-radius:10px;padding:10px 14px;font-size:13px;display:flex;justify-content:space-between;align-items:center}
+        .admin-player-tag{background:rgba(34,197,94,0.15);color:#22c55e;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700}
+
+        /* Rplace chat msg */
+        .rplace-chat-msg{padding:7px 10px;border-radius:10px;font-size:12px;line-height:1.4}
+        .rplace-chat-msg.me{background:rgba(79,70,229,0.18);border-left:2px solid #6366f1}
+        .rplace-chat-msg.other{background:rgba(255,255,255,0.05)}
+        .rplace-chat-msg .author{font-weight:700;font-size:11px;margin-bottom:2px;opacity:0.75}
+    </style>
 </head>
 <body class="dark-theme">
 
@@ -32,15 +133,15 @@
     <div class="header-left">
         <span class="brand" id="brand-logo">Demircioğlu</span>
         <nav class="top-nav">
-            <a href="#color" class="nav-link" id="nav-color-btn">Renk hafızası</a>
+            <a href="/color"   class="nav-link" id="nav-color-btn">Renk hafızası</a>
             <div class="nav-link-wrapper">
                 <span class="badge-new">canlı</span>
-                <a href="#weather" class="nav-link" id="nav-weather-btn">Hava durumu</a>
+                <a href="/weather" class="nav-link" id="nav-weather-btn">Hava durumu</a>
             </div>
-            <a href="#rplace" class="nav-link" id="nav-rplace-btn">r/place</a>
-            <a href="#okey" class="nav-link" id="nav-okey-btn">101 Okey</a>
-            <a href="#admin" class="nav-link hidden" id="nav-admin-btn">Admin</a>
-            <a href="#" class="nav-link" id="chat-toggle-btn">Sohbet</a>
+            <a href="/rplace" class="nav-link" id="nav-rplace-btn">r/place</a>
+            <a href="/okey"   class="nav-link" id="nav-okey-btn">101 Okey</a>
+            <a href="/101v2"  class="nav-link" id="nav-101v2-btn"><span class="badge-new" style="background:#eab308;color:#000;font-weight:800">v2</span>101 Okey v2</a>
+            <a href="#"       class="nav-link" id="chat-toggle-btn">Sohbet</a>
         </nav>
     </div>
     <div class="header-right">
@@ -83,7 +184,7 @@
             <div class="view-step">
                 <span class="game-tag">Ana Sayfa</span>
                 <h1 class="main-title">burak<br>demircioğlu</h1>
-                <p class="desc">Algı, hafıza ve canlı araçlar koleksiyonu. Oynamak <span id="admin-trigger" class="platform-yazisi" style="cursor:pointer;text-decoration:underline dotted;" title="Admin Girişi">veya</span> incelemek istediğin modülü seç.</p>
+                <p class="desc">Algı, hafıza ve canlı araçlar koleksiyonu. Oynamak <span class="platform-yazisi" style="cursor:pointer;text-decoration:underline dotted;" title="Admin">veya</span> incelemek istediğin modülü seç.</p>
                 <div class="home-grid">
                     <div class="home-card" id="home-card-color">
                         <div class="home-card-icon">🎨</div>
@@ -104,6 +205,11 @@
                         <div class="home-card-icon">🀄</div>
                         <div class="home-card-title">101 Okey</div>
                         <div class="home-card-desc">Özel oda kur, şifre belirle ve arkadaşlarını yönet.</div>
+                    </div>
+                    <div class="home-card" id="home-card-101v2" style="cursor:pointer" onclick="window.location.href='/101v2'">
+                        <div class="home-card-icon">🎴</div>
+                        <div class="home-card-title">101 Okey v2 <span style="font-size:10px;background:#eab308;color:#000;padding:2px 6px;border-radius:4px;font-weight:800">YENİ</span></div>
+                        <div class="home-card-desc">Özel avatar & ıstaka seçimi, takım modu ve sprite taş animasyonları.</div>
                     </div>
                 </div>
             </div>
@@ -257,9 +363,9 @@
                         </div>
                     </div>
                     <div class="rplace-zoom-controls">
-                        <button id="rplace-zoom-in" class="rplace-zoom-btn" title="Yakınlaştır">+</button>
+                        <button id="rplace-zoom-in"    class="rplace-zoom-btn" title="Yakınlaştır">+</button>
                         <button id="rplace-zoom-reset" class="rplace-zoom-btn" title="Sıfırla">⊙</button>
-                        <button id="rplace-zoom-out" class="rplace-zoom-btn" title="Uzaklaştır">−</button>
+                        <button id="rplace-zoom-out"   class="rplace-zoom-btn" title="Uzaklaştır">−</button>
                     </div>
                 </div>
             </div>
@@ -301,6 +407,7 @@
                     </button>
                 </div>
 
+                <!-- Arama ve Filtreler -->
                 <div class="okey-lobby-filters">
                     <input type="text" id="okey-room-search" class="chat-input okey-search-input" placeholder="🔍 Masa ara..." autocomplete="off">
                     <div class="okey-filter-chips">
@@ -332,7 +439,7 @@
                     <label class="okey-label">Masa Adı</label>
                     <input type="text" id="new-room-name" class="chat-input" placeholder="Örn: Şampiyonlar Masası" maxlength="25" autocomplete="off">
                     
-                    <label class="okey-label" style="margin-top:12px">Masa Şifresi <span style="font-size:11px;color:var(--text-muted)">(İsteğe bağlı)</span></label>
+                    <label class="okey-label" style="margin-top:12px">Masa Şifresi <span style="font-size:11px;color:var(--text-muted)">(İsteğe bağlı, boş bırakılırsa herkese açık)</span></label>
                     <input type="password" id="new-room-pass" class="chat-input" placeholder="Gizli şifre..." autocomplete="new-password">
 
                     <label class="okey-label" style="margin-top:12px">Oyun Modu</label>
@@ -367,7 +474,7 @@
             </div>
         </div>
 
-        <!-- OYUNCU YÖNETİM MODALI -->
+        <!-- OYUNCU YÖNETİM (KICK / BAN) MODALI -->
         <div id="okey-player-action-modal" class="okey-modal-backdrop hidden">
             <div class="okey-modal-card" style="max-width:360px">
                 <div class="okey-modal-header">
@@ -376,8 +483,12 @@
                 </div>
                 <div class="okey-modal-body" style="display:flex;flex-direction:column;gap:10px">
                     <p style="font-size:13px;color:var(--text-muted)">Lider olarak bu oyuncuya uygulamak istediğin eylemi seç:</p>
-                    <button id="okey-action-kick-btn" class="action-btn" style="background:#f59e0b;color:#000;font-weight:700">🚫 Masadan At (Kick)</button>
-                    <button id="okey-action-ban-btn" class="action-btn" style="background:#ef4444;color:#fff;font-weight:700">⛔ Masadan Banla</button>
+                    <button id="okey-action-kick-btn" class="action-btn" style="background:#f59e0b;color:#000;font-weight:700">
+                        🚫 Masadan At (Kick)
+                    </button>
+                    <button id="okey-action-ban-btn" class="action-btn" style="background:#ef4444;color:#fff;font-weight:700">
+                        ⛔ Masadan Banla (Tekrar Giremez)
+                    </button>
                 </div>
             </div>
         </div>
@@ -396,74 +507,62 @@
                         <button id="okey-leave-room-btn" class="action-btn" style="width:auto;padding:8px 16px;background:#ef4444;color:#fff">🚪 Masadan Ayrıl</button>
                     </div>
                 </div>
-
                 <div class="okey-table-container">
-                    <!-- Üst Oyuncu -->
-                    <div class="okey-seat seat-top" id="seat-top" data-seat="top">
+                    <div class="okey-seat seat-top" id="seat-top">
                         <div class="seat-avatar">👤</div>
-                        <div class="seat-name-wrapper"><span class="seat-name">Boş Slot</span><span class="seat-crown hidden">👑</span></div>
+                        <div class="seat-name-wrapper"><span class="seat-name">Boş</span><span class="seat-crown hidden">👑</span></div>
                         <div class="seat-status-text">⚡ Sıra Sende</div>
                         <div class="seat-throw-area" id="throw-top">—</div>
                     </div>
-
-                    <!-- Sol Oyuncu -->
-                    <div class="okey-seat seat-left" id="seat-left" data-seat="left">
+                    <div class="okey-seat seat-left" id="seat-left">
                         <div class="seat-avatar">👤</div>
-                        <div class="seat-name-wrapper"><span class="seat-name">Boş Slot</span><span class="seat-crown hidden">👑</span></div>
+                        <div class="seat-name-wrapper"><span class="seat-name">Boş</span><span class="seat-crown hidden">👑</span></div>
                         <div class="seat-status-text">⚡ Sıra Sende</div>
                         <div class="seat-throw-area" id="throw-left">—</div>
                     </div>
-
-                    <!-- Sağ Oyuncu -->
-                    <div class="okey-seat seat-right" id="seat-right" data-seat="right">
+                    <div class="okey-table-center">
+                        <div class="okey-deck-stack" id="okey-draw-deck">
+                            <span class="deck-icon">🀄</span>
+                            <span class="deck-count" id="okey-deck-count">106</span>
+                        </div>
+                        <div class="okey-indicator-area">
+                            <span style="font-size:10px;opacity:0.7">Gösterge</span>
+                            <div id="okey-indicator-tile" class="okey-tile-item">—</div>
+                        </div>
+                        <div id="okey-turn-indicator" class="okey-turn-badge">Bekleniyor</div>
+                    </div>
+                    <div class="okey-seat seat-right" id="seat-right">
                         <div class="seat-avatar">👤</div>
-                        <div class="seat-name-wrapper"><span class="seat-name">Boş Slot</span><span class="seat-crown hidden">👑</span></div>
+                        <div class="seat-name-wrapper"><span class="seat-name">Boş</span><span class="seat-crown hidden">👑</span></div>
                         <div class="seat-status-text">⚡ Sıra Sende</div>
                         <div class="seat-throw-area" id="throw-right">—</div>
                     </div>
-
-                    <!-- Alt Oyuncu (Sen) -->
-                    <div class="okey-seat seat-bottom" id="seat-bottom" data-seat="bottom">
-                        <div class="seat-avatar">👤</div>
-                        <div class="seat-name-wrapper"><span class="seat-name">Sen</span><span class="seat-crown hidden">👑</span></div>
-                        <div class="seat-status-text">⚡ Sıra Sende</div>
-                        <div class="seat-throw-area" id="throw-bottom">—</div>
-                    </div>
-
-                    <!-- Masa Ortası -->
-                    <div class="okey-table-center">
-                        <div class="okey-deck-stack" id="okey-deck-draw-btn">
-                            <span class="deck-icon">🎴</span>
-                            <span class="deck-count" id="okey-deck-count">106</span>
-                        </div>
-                        <div id="okey-turn-indicator" class="okey-turn-badge">Oyuncular Bekleniyor...</div>
-                        <div class="okey-indicator-area">
-                            <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px">Gösterge</span>
-                            <div id="okey-indicator-tile" class="okey-tile-item">?</div>
-                        </div>
+                    <div class="okey-seat seat-bottom" id="seat-bottom">
+                        <div class="seat-avatar">🧑</div>
+                        <div class="seat-name-wrapper"><span class="seat-name">Sen</span><span class="seat-crown hidden" id="bottom-crown">👑</span></div>
+                        <div class="seat-status-text" id="bottom-turn-badge">⚡ Sıra Sende</div>
+                        <div class="seat-throw-area" id="throw-bottom" title="Taşı sürükle ve bırak">Taş At</div>
                     </div>
                 </div>
-
-                <!-- OYUNCU ISTAKASI -->
                 <div class="okey-rack-container">
                     <div class="okey-rack-header">
-                        <span>Senin Istakan</span>
+                        <span id="okey-info-text">Senin Istakan</span>
                         <div class="okey-rack-actions">
-                            <button id="okey-sort-color-btn" class="diff-btn">Renge Göre</button>
-                            <button id="okey-sort-series-btn" class="diff-btn">Seri Diz</button>
-                            <button id="okey-sort-pairs-btn" class="diff-btn">Çift Diz</button>
+                            <button id="okey-draw-tile-btn" class="action-btn" style="padding:6px 14px;font-size:12px">⬆ Taş Çek</button>
+                            <button id="okey-open-per-btn" class="play-btn" style="padding:6px 16px;font-size:12px;width:auto">✨ Per Aç</button>
                         </div>
                     </div>
-                    <div class="okey-rack-tiles">
+                    <div id="okey-user-rack" class="okey-rack-tiles">
                         <div class="okey-rack-row" id="okey-rack-row-1"></div>
                         <div class="okey-rack-row" id="okey-rack-row-2"></div>
                     </div>
                 </div>
             </div>
-
-            <!-- MASA SOHBETİ -->
             <div class="rplace-right-chat okey-chat-sidebar">
-                <div class="rplace-chat-header"><h3>Masa Sohbeti 💬</h3></div>
+                <div class="rplace-chat-header">
+                    <h3>Masa Sohbeti 💬</h3>
+                    <span id="okey-chat-host-tag" style="font-size:10px;color:#eab308;display:none">👑 Lider Yetkisi</span>
+                </div>
                 <div id="okey-chat-messages" class="rplace-chat-messages"></div>
                 <form id="okey-chat-form" class="rplace-chat-form">
                     <input type="text" id="okey-chat-input" placeholder="Masaya yaz..." autocomplete="off" required>
@@ -473,7 +572,7 @@
         </div>
     </div>
 
-    <!-- ADMIN PANELİ -->
+    <!-- ADMİN PANELİ -->
     <div id="admin-panel" class="app-panel hidden">
         <div id="admin-login-view" class="admin-container">
             <div class="admin-card">
@@ -485,38 +584,31 @@
                 <p id="admin-error" class="chat-error hidden">Yanlış şifre!</p>
             </div>
         </div>
-
-        <div id="admin-dashboard-view" class="admin-dashboard hidden">
+        <div id="admin-dashboard" class="admin-dashboard" style="display:none">
             <div class="admin-header">
-                <h2>Platform Yönetim Merkezi 🛡️</h2>
-                <button id="admin-logout-btn" class="action-btn" style="width:auto;padding:8px 16px;background:#ef4444;color:#fff">Çıkış Yap</button>
-            </div>
-
-            <div class="admin-stats">
-                <div class="admin-stat-card">
-                    <div class="admin-stat-num" id="stat-rooms-count">0</div>
-                    <div class="admin-stat-label">Aktif Okey Masası</div>
-                </div>
-                <div class="admin-stat-card">
-                    <div class="admin-stat-num" id="stat-chat-msgs">0</div>
-                    <div class="admin-stat-label">Sohbet Mesajı</div>
-                </div>
-                <div class="admin-stat-card">
-                    <div class="admin-stat-num" id="stat-rplace-pixels">0</div>
-                    <div class="admin-stat-label">r/place Pikseli</div>
+                <h2>🛡️ Admin Paneli</h2>
+                <div style="display:flex;gap:10px;align-items:center">
+                    <span id="admin-user-label" style="font-size:13px;color:var(--text-muted)"></span>
+                    <button id="admin-logout-btn" class="action-btn" style="width:auto;padding:8px 14px;font-size:13px">Çıkış</button>
                 </div>
             </div>
-
+            <div class="admin-stats" id="admin-stats">
+                <div class="admin-stat-card"><div class="admin-stat-num" id="stat-pixels">—</div><div class="admin-stat-label">Toplam Piksel</div></div>
+                <div class="admin-stat-card"><div class="admin-stat-num" id="stat-chat">—</div><div class="admin-stat-label">Sohbet Mesajı</div></div>
+                <div class="admin-stat-card"><div class="admin-stat-num" id="stat-okey">—</div><div class="admin-stat-label">Aktif Okey Oyuncusu</div></div>
+            </div>
             <div class="admin-sections">
                 <div class="admin-section">
-                    <h3>101 Okey Odalarını Yönet</h3>
-                    <div id="admin-rooms-list" class="admin-msg-list"></div>
-                    <button id="admin-reset-all-rooms" class="action-btn" style="background:#ef4444;color:#fff;margin-top:8px">Tüm Odaları Sıfırla</button>
+                    <h3>🟩 r/place Yönetimi</h3>
+                    <button id="admin-clear-rplace" class="play-btn" style="background:#ef4444;font-size:14px">🗑️ Tüm Tuvali Temizle</button>
                 </div>
                 <div class="admin-section">
-                    <h3>Sohbet Temizliği</h3>
-                    <button id="admin-clear-global-chat" class="action-btn" style="background:#f59e0b;color:#000">Sohbet Geçmişini Temizle</button>
-                    <button id="admin-reset-rplace" class="action-btn" style="background:#ef4444;color:#fff;margin-top:8px">r/place Tuvalini Sıfırla</button>
+                    <h3>💬 Sohbet Mesajları</h3>
+                    <div id="admin-chat-list" class="admin-msg-list"></div>
+                </div>
+                <div class="admin-section">
+                    <h3>🀄 Okey Odaları</h3>
+                    <div id="admin-okey-list" class="admin-msg-list"></div>
                 </div>
             </div>
         </div>
@@ -524,8 +616,9 @@
 
 </main>
 
-<div id="toast-container" class="toast"></div>
-
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
