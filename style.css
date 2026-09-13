@@ -790,3 +790,8 @@ body {
     .nav-link { font-size: 11px; }
     .brand { font-size: 15px; }
 }
+
+.platform-yazisi {
+    cursor: pointer;
+    text-decoration: none;
+}
