@@ -188,6 +188,30 @@
                 
                 <!-- MARKA ÇEŞİTLİLİĞİ BANTI -->
                 <div class="brand-showcase-container">
+                    <!-- LOGO RENK ÖZELLEŞTİRME PANELİ -->
+<div class="logo-color-picker-wrapper">
+    <span class="brand-section-title">Logo & Başlık Renk Ayarı</span>
+    <div class="color-picker-controls">
+        <div class="color-picker-group">
+            <div class="color-picker-item">
+                <label for="primaryColor">Ana Renk</label>
+                <input type="color" id="primaryColor" value="#ffffff" onchange="updateLogoColor()">
+            </div>
+            <div class="color-picker-item">
+                <label for="accentColor">Vurgu Rengi</label>
+                <input type="color" id="accentColor" value="#3b82f6" onchange="updateLogoColor()">
+            </div>
+        </div>
+        
+        <!-- Hızlı Renk Hafızası Paletleri -->
+        <div class="color-presets">
+            <button class="color-preset-btn" style="background: linear-gradient(135deg, #ffffff 50%, #000000 50%);" title="Siyah & Beyaz" onclick="setPresetColor('#ffffff', '#ffffff')"></button>
+            <button class="color-preset-btn" style="background: linear-gradient(135deg, #3b82f6 50%, #60a5fa 50%);" title="Mavi Tema" onclick="setPresetColor('#3b82f6', '#60a5fa')"></button>
+            <button class="color-preset-btn" style="background: linear-gradient(135deg, #ef4444 50%, #f87171 50%);" title="Kırmızı Tema" onclick="setPresetColor('#ef4444', '#f87171')"></button>
+            <button class="color-preset-btn" style="background: linear-gradient(135deg, #22c55e 50%, #4ade80 50%);" title="Yeşil Tema" onclick="setPresetColor('#22c55e', '#4ade80')"></button>
+        </div>
+    </div>
+</div>
                     <span class="brand-section-title">Öne Çıkan Markalar & Projeler</span>
                     <div class="brand-ticker-wrapper">
                         <div class="brand-ticker-track">
