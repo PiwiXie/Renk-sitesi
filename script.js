@@ -1790,3 +1790,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // İlk rota
     handleRoute();
 });
+
+function updateLogoColor() {
+    const primary = document.getElementById('primaryColor').value;
+    const accent = document.getElementById('accentColor').value;
+
+    // CSS değişkenlerini güncelle
+    document.documentElement.style.setProperty('--logo-primary', primary);
+    document.documentElement.style.setProperty('--logo-accent', accent);
+
+    // Başlık/Logo renklerini anlık uygula
+    const mainTitle = document.querySelector('.main-title');
+    if (mainTitle) {
+        mainTitle.style.color = primary;
+    }
+}
+
+function setPresetColor(primary, accent) {
+    document.getElementById('primaryColor').value = primary;
+    document.getElementById('accentColor').value = accent;
+    updateLogoColor();
+}
