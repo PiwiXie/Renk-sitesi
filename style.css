@@ -872,3 +872,76 @@ body {
     background: rgba(255,255,255,0.08);
     color: var(--text-muted);
 }
+
+/* LOGO RENK AYARLARI VE PALET */
+.logo-color-picker-wrapper {
+    background: var(--button-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 14px 18px;
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.color-picker-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.color-picker-group {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.color-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+.color-picker-item input[type="color"] {
+    -webkit-appearance: none;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    background: transparent;
+}
+
+.color-picker-item input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.color-picker-item input[type="color"]::-webkit-color-swatch {
+    border: 2px solid var(--border-color);
+    border-radius: 50%;
+}
+
+.color-presets {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.color-preset-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--border-color);
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.color-preset-btn:hover {
+    transform: scale(1.2);
+}
