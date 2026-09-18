@@ -1,5 +1,7 @@
 // ============================================================
-// 101 OKEY v2 — ROBUST FIREBASE REALTIME ENGINE & GAME ADAPTER
+// 101 OKEY v2 — GERÇEK ZAMANLI MULTIPLAYER FIREBASE ADAPTÖRÜ
+// Bot sistemi TAMAMEN KALDIRILMIŞTIR.
+// Sadece odaya katılan gerçek oyuncular birlikte oynar.
 // ============================================================
 
 const firebaseConfig = {
@@ -24,7 +26,8 @@ class FirebaseSocketAdapter {
         this.roomsListUnsub = null;
         this.currentRoom = 'MAIN';
         this.isHost = false;
-        this.botTimeout = null;
+        this.gameStartedEver = false;
+        this.lastProcessedActionId = null;
 
         setTimeout(() => {
             this.trigger('connect', {});
@@ -35,6 +38,15 @@ class FirebaseSocketAdapter {
     on(event, callback) {
         if (!this.listeners[event]) this.listeners[event] = [];
         this.listeners[event].push(callback);
+    }
+
+    off(event, callback) {
+        if (!this.listeners[event]) return;
+        if (!callback) {
+            delete this.listeners[event];
+        } else {
+            this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+        }
     }
 
     emit(event, data) {
@@ -51,20 +63,21 @@ class FirebaseSocketAdapter {
                 break;
             case 'forceStartGame':
             case 'startGame':
-                this.handleForceStartGame(data);
+                this.handleStartGame(data);
                 break;
             case 'drawTile':
                 this.handleDrawTile(data);
                 break;
             case 'drawFromDiscard':
-                this.handleDrawTile({ source: 'discard' });
+                this.handleDrawTile({ fromDiscard: true });
                 break;
             case 'discardTile':
                 this.handleDiscardTile(data);
                 break;
+            case 'openHand':
             case 'openGroup':
             case 'openGroups':
-                this.handleOpenGroup(data);
+                this.handleOpenHand(data);
                 break;
             case 'openPairs':
                 this.handleOpenPairs(data);
@@ -75,8 +88,14 @@ class FirebaseSocketAdapter {
             case 'finishGame':
                 this.handleFinishGame(data);
                 break;
+            case 'sortTiles':
+                this.handleSortTiles(data);
+                break;
             case 'throwTomato':
                 this.handleThrowTomato(data);
+                break;
+            case 'newRound':
+                this.handleNewRound(data);
                 break;
             case 'leaveRoom':
                 this.handleLeaveRoom();
@@ -112,6 +131,8 @@ class FirebaseSocketAdapter {
         const targetRoom = roomCode || ('MASA_' + Math.random().toString(36).substr(2, 6).toUpperCase());
         this.currentRoom = targetRoom;
         this.isHost = true;
+        this.gameStartedEver = false;
+        this.lastProcessedActionId = null;
 
         const roomRef = db.collection('okey_v2_rooms').doc(targetRoom);
         const hostPlayer = {
@@ -135,6 +156,7 @@ class FirebaseSocketAdapter {
             penaltyMode: !!penaltyMode,
             gameStarted: false,
             gameStateJson: null,
+            lastAction: null,
             scores: {},
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         };
@@ -157,6 +179,8 @@ class FirebaseSocketAdapter {
         const { playerName, avatar, istaka, teamMode, stackingMode, penaltyMode, roomCode, password } = data;
         const targetRoom = roomCode || 'MAIN';
         this.currentRoom = targetRoom;
+        this.gameStartedEver = false;
+        this.lastProcessedActionId = null;
 
         const roomRef = db.collection('okey_v2_rooms').doc(targetRoom);
 
@@ -172,6 +196,7 @@ class FirebaseSocketAdapter {
                 penaltyMode: !!penaltyMode,
                 gameStarted: false,
                 gameStateJson: null,
+                lastAction: null,
                 scores: {}
             };
 
@@ -208,6 +233,8 @@ class FirebaseSocketAdapter {
             if (room.players.length === 1 || room.hostId === this.id) {
                 this.isHost = true;
                 room.hostId = this.id;
+            } else {
+                this.isHost = (room.hostId === this.id);
             }
 
             await roomRef.set(room);
@@ -230,81 +257,57 @@ class FirebaseSocketAdapter {
 
     async handleRejoinRoom(data) {
         const targetRoom = data?.roomCode || this.currentRoom || 'MAIN';
+        this.currentRoom = targetRoom;
         this.listenRoom(targetRoom);
     }
 
-    async handleForceStartGame(data) {
-        console.log('[FORCE START GAME] Called with:', data);
+    // Oyunu Başlat — SADECE GERÇEK OYUNCULARLA, SIFIR BOT
+    async handleStartGame(data) {
         const targetRoom = data?.roomCode || this.currentRoom || 'MAIN';
         const roomRef = db.collection('okey_v2_rooms').doc(targetRoom);
 
         try {
             const doc = await roomRef.get();
-            let room = doc.exists ? doc.data() : {
-                code: targetRoom,
-                players: [{
-                    id: this.id,
-                    name: localStorage.getItem('okeyPlayerName') || 'Oyuncu',
-                    avatar: localStorage.getItem('okeyPlayerAvatar') || 'alibicim.png',
-                    istaka: localStorage.getItem('okeyPlayerIstaka') || 'istaka.jpg',
-                    index: 0,
-                    position: 'bottom',
-                    team: null
-                }],
-                teamMode: false,
-                stackingMode: false,
-                penaltyMode: false
-            };
-
-            const botNames = ['Ege Fitness (Bot)', 'LeBron James (Bot)', 'Lvbel C5 (Bot)', 'Ali Biçim (Bot)'];
-            const botAvatars = ['egefitness.png', 'james.jpg', 'lvblc5.jpg', 'alibicim.png'];
-            const positions = ['bottom', 'right', 'top', 'left'];
-
-            // 4 oyuncuya tamamla
-            while (room.players.length < 4) {
-                const pIndex = room.players.length;
-                const botIdx = pIndex % botNames.length;
-                room.players.push({
-                    id: 'bot_' + Math.random().toString(36).substr(2, 7),
-                    name: botNames[botIdx],
-                    avatar: botAvatars[botIdx],
-                    istaka: 'istaka.jpg',
-                    index: pIndex,
-                    position: positions[pIndex],
-                    isBot: true,
-                    team: room.teamMode ? (pIndex % 2 === 0 ? 1 : 2) : null
-                });
+            if (!doc.exists) {
+                this.trigger('error', { message: 'Masa bulunamadı!' });
+                return;
             }
 
-            const gameState = this.initGameLogic(room.players);
-            room.gameStarted = true;
-            room.gameStateJson = JSON.stringify(gameState); // NO NESTED ARRAYS ERROR!
+            const room = doc.data();
+            const realPlayers = (room.players || []).filter(p => !p.isBot);
 
-            // Firestore'a kaydet
-            await roomRef.set(room);
-            console.log('[FORCE START GAME] Successfully saved to Firestore!');
+            if (realPlayers.length < 2) {
+                this.trigger('error', { message: 'Oyunu başlatmak için masada en az 2 gerçek oyuncu olmalıdır!' });
+                return;
+            }
 
-            // Anında yerel olarak da başlat
-            const myName = localStorage.getItem('okeyPlayerName');
-            const myPlayer = (room.players || []).find(p => p.id === this.id || p.name === myName);
-            const myIndex = myPlayer ? myPlayer.index : 0;
-
-            this.trigger('gameStarted', {
-                players: room.players,
-                playerIndex: myIndex,
-                tiles: gameState.playerTiles[myIndex] || [],
-                indicator: gameState.indicator,
-                okey: gameState.okey,
-                currentPlayer: gameState.currentPlayer,
-                teamMode: room.teamMode,
-                scores: room.scores || {},
-                pileCount: gameState.tiles.length,
-                discardPiles: gameState.discardPiles,
-                tableGroups: gameState.tableGroups || [],
-                playerStates: gameState.playerStates || []
+            // Pozisyonları ve indeksleri netleştir
+            const positions = ['bottom', 'right', 'top', 'left'];
+            realPlayers.forEach((p, idx) => {
+                p.index = idx;
+                p.position = positions[idx];
+                if (room.teamMode) {
+                    p.team = (idx % 2 === 0 ? 1 : 2);
+                }
             });
+            room.players = realPlayers;
+
+            // Oyun mantığını kur
+            const gameState = this.initGameLogic(realPlayers);
+            room.gameStarted = true;
+            room.gameStateJson = JSON.stringify(gameState);
+            room.lastAction = {
+                id: 'start_' + Date.now(),
+                type: 'gameStartedSync',
+                payload: {},
+                timestamp: Date.now()
+            };
+
+            await roomRef.set(room);
+            console.log('[GAME STARTED] Gerçek oyuncularla oyun başarıyla başlatıldı!');
         } catch (e) {
-            console.error('handleForceStartGame error:', e);
+            console.error('handleStartGame error:', e);
+            this.trigger('error', { message: 'Oyun başlatılırken hata oluştu!' });
         }
     }
 
@@ -333,7 +336,7 @@ class FirebaseSocketAdapter {
             [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
         }
 
-        // Gösterge ve Okey
+        // Gösterge ve Okey belirleme
         let indicator;
         do {
             indicator = tiles.pop();
@@ -344,11 +347,28 @@ class FirebaseSocketAdapter {
 
         // Dağıtıcı (0. oyuncu) 22 taş, diğerleri 21 taş alır
         const currentPlayer = 0;
-        const playerTiles = [[], [], [], []];
-        for (let p = 0; p < 4; p++) {
+        const playerCount = players.length;
+        const playerTiles = [];
+        const discardPiles = [];
+        const playerStates = [];
+
+        for (let p = 0; p < playerCount; p++) {
+            playerTiles.push([]);
+            discardPiles.push([]);
+            playerStates.push({
+                hasOpened: false,
+                openType: null,
+                openedGroups: [],
+                openScore: 0,
+                mustOpenThisTurn: false,
+                drawnFromDiscardTile: null
+            });
+
             const count = (p === currentPlayer) ? 22 : 21;
             for (let k = 0; k < count; k++) {
-                playerTiles[p].push(tiles.pop());
+                if (tiles.length > 0) {
+                    playerTiles[p].push(tiles.pop());
+                }
             }
         }
 
@@ -358,15 +378,11 @@ class FirebaseSocketAdapter {
             okey,
             currentPlayer,
             playerTiles,
-            discardPiles: [[], [], [], []],
-            hasDrawn: true,
+            discardPiles,
+            hasDrawn: true, // İlk başlayan oyuncu zaten 22 taş aldı
             tableGroups: [],
-            playerStates: [
-                { hasOpened: false, openType: null, openedGroups: [], openScore: 0 },
-                { hasOpened: false, openType: null, openedGroups: [], openScore: 0 },
-                { hasOpened: false, openType: null, openedGroups: [], openScore: 0 },
-                { hasOpened: false, openType: null, openedGroups: [], openScore: 0 }
-            ]
+            playerStates,
+            minimumOpenScore: 101
         };
     }
 
@@ -378,6 +394,7 @@ class FirebaseSocketAdapter {
             if (!doc.exists) return;
             const data = doc.data();
 
+            // Lobi / Oyuncu listesi güncellemesi
             this.trigger('playerJoined', {
                 players: data.players || [],
                 teamMode: data.teamMode || false
@@ -391,12 +408,20 @@ class FirebaseSocketAdapter {
                 scores: data.scores || {}
             });
 
-            const gameState = data.gameStateJson ? JSON.parse(data.gameStateJson) : data.gameState;
+            if (!data.gameStarted || !data.gameStateJson) {
+                this.gameStartedEver = false;
+                return;
+            }
 
-            if (data.gameStarted && gameState) {
-                const myName = localStorage.getItem('okeyPlayerName');
-                const myPlayer = (data.players || []).find(p => p.id === this.id || p.name === myName);
-                const myIndex = myPlayer ? myPlayer.index : 0;
+            const gameState = JSON.parse(data.gameStateJson);
+            const myName = localStorage.getItem('okeyPlayerName');
+            const myPlayer = (data.players || []).find(p => p.id === this.id || p.name === myName);
+            const myIndex = myPlayer ? myPlayer.index : 0;
+
+            // Oyun ilk kez başladığında tam initialize et
+            if (!this.gameStartedEver) {
+                this.gameStartedEver = true;
+                this.lastProcessedActionId = data.lastAction?.id || null;
 
                 this.trigger('gameStarted', {
                     players: data.players,
@@ -408,15 +433,56 @@ class FirebaseSocketAdapter {
                     teamMode: data.teamMode,
                     scores: data.scores || {},
                     pileCount: gameState.tiles.length,
-                    discardPiles: gameState.discardPiles,
+                    discardPiles: gameState.discardPiles || [],
                     tableGroups: gameState.tableGroups || [],
                     playerStates: gameState.playerStates || []
                 });
+                return;
+            }
 
-                // Eğer sıra bot oyuncudaysa, bot hamlesini tetikle
-                const currPlayerObj = data.players[gameState.currentPlayer];
-                if (currPlayerObj && currPlayerObj.isBot && this.isHost) {
-                    this.scheduleBotTurn(roomId, gameState.currentPlayer);
+            // Son hamle aksiyonu varsa (incremental update)
+            if (data.lastAction && data.lastAction.id !== this.lastProcessedActionId) {
+                this.lastProcessedActionId = data.lastAction.id;
+                const { type, payload } = data.lastAction;
+
+                if (type === 'tileDiscarded') {
+                    this.trigger('tileDiscarded', payload);
+                } else if (type === 'tileDrawn') {
+                    // Sadece çeken oyuncu tileDrawn alsın
+                    if (payload.playerIndex === myIndex) {
+                        this.trigger('tileDrawn', {
+                            tile: payload.tile,
+                            fromDiscard: payload.fromDiscard,
+                            mustOpenHand: payload.mustOpenHand
+                        });
+                    } else {
+                        // Diğer oyuncular taş sayısını güncellesin
+                        this.trigger('playerDrewTile', {
+                            playerIndex: payload.playerIndex,
+                            fromDiscard: payload.fromDiscard,
+                            tileCount: payload.tileCount
+                        });
+                    }
+                } else if (type === 'handOpened') {
+                    this.trigger('handOpened', payload);
+                } else if (type === 'pairsOpened') {
+                    this.trigger('pairsOpened', payload);
+                } else if (type === 'groupUpdated') {
+                    this.trigger('groupUpdated', payload);
+                } else if (type === 'gameFinished') {
+                    this.trigger('gameFinished', payload);
+                } else if (type === 'penaltyApplied') {
+                    this.trigger('penaltyApplied', payload);
+                } else if (type === 'tomatoThrown') {
+                    this.trigger('tomatoThrown', payload);
+                    if (payload.targetPlayerIndex === myIndex) {
+                        this.trigger('tomatoHit', payload);
+                    }
+                }
+
+                // Deste taş sayısını güncelle
+                if (gameState.tiles) {
+                    this.trigger('pileUpdate', { count: gameState.tiles.length });
                 }
             }
         }, err => {
@@ -424,163 +490,386 @@ class FirebaseSocketAdapter {
         });
     }
 
-    scheduleBotTurn(roomId, botIndex) {
-        if (this.botTimeout) clearTimeout(this.botTimeout);
-        this.botTimeout = setTimeout(async () => {
-            const roomRef = db.collection('okey_v2_rooms').doc(roomId);
+    // Taş Çekme: Yığından veya Yerden (Yandan)
+    async handleDrawTile(data) {
+        const isFromDiscard = data?.fromDiscard === true || data?.source === 'discard';
+        const roomRef = db.collection('okey_v2_rooms').doc(this.currentRoom);
+
+        try {
             const doc = await roomRef.get();
             if (!doc.exists) return;
             const room = doc.data();
-            const gameState = room.gameStateJson ? JSON.parse(room.gameStateJson) : room.gameState;
-            if (!gameState || gameState.currentPlayer !== botIndex) return;
+            const gameState = JSON.parse(room.gameStateJson);
 
-            // 1. Taş çek (yığından)
-            if (gameState.tiles.length > 0) {
-                const drawn = gameState.tiles.pop();
-                gameState.playerTiles[botIndex].push(drawn);
+            const myName = localStorage.getItem('okeyPlayerName');
+            const myPlayer = room.players.find(p => p.id === this.id || p.name === myName);
+            if (!myPlayer || gameState.currentPlayer !== myPlayer.index) {
+                this.trigger('error', { message: 'Sıra sizde değil!' });
+                return;
             }
 
-            // 2. Rastgele bir taş at
-            const hand = gameState.playerTiles[botIndex];
-            if (hand && hand.length > 0) {
-                const discarded = hand.pop();
-                gameState.discardPiles[botIndex].push(discarded);
+            if (gameState.hasDrawn) {
+                this.trigger('error', { message: 'Zaten taş çektiniz!' });
+                return;
             }
 
-            // 3. Sırayı sonraki oyuncuya geçir
-            gameState.currentPlayer = (gameState.currentPlayer + 1) % 4;
-            gameState.hasDrawn = false;
+            const numPlayers = room.players.length;
+            let drawnTile = null;
+            let mustOpenHand = false;
 
-            room.gameStateJson = JSON.stringify(gameState);
-            await roomRef.set(room);
-        }, 1600);
-    }
-
-    async handleDrawTile({ source }) {
-        const roomRef = db.collection('okey_v2_rooms').doc(this.currentRoom);
-        const doc = await roomRef.get();
-        if (!doc.exists) return;
-        const room = doc.data();
-        const gameState = room.gameStateJson ? JSON.parse(room.gameStateJson) : room.gameState;
-        if (!gameState) return;
-
-        const myName = localStorage.getItem('okeyPlayerName');
-        const myPlayer = room.players.find(p => p.id === this.id || p.name === myName);
-        if (!myPlayer || gameState.currentPlayer !== myPlayer.index) return;
-
-        let drawnTile = null;
-        if (source === 'pile' && gameState.tiles.length > 0) {
-            drawnTile = gameState.tiles.pop();
-        } else if (source === 'discard') {
-            const prevPlayer = (myPlayer.index + 3) % 4;
-            const pile = gameState.discardPiles[prevPlayer];
-            if (pile && pile.length > 0) {
+            if (isFromDiscard) {
+                // Solundaki oyuncunun attığı son taşı çek
+                const prevPlayer = (myPlayer.index - 1 + numPlayers) % numPlayers;
+                const pile = gameState.discardPiles[prevPlayer];
+                if (!pile || pile.length === 0) {
+                    this.trigger('error', { message: 'Yerde çekilecek taş yok!' });
+                    return;
+                }
                 drawnTile = pile.pop();
+                mustOpenHand = true; // 101 kuralı: Yerden taş alan oyuncu bu el açmak ZORUNDADIR!
+                gameState.playerStates[myPlayer.index].drawnFromDiscardTile = drawnTile;
+                gameState.playerStates[myPlayer.index].mustOpenThisTurn = true;
+            } else {
+                // Yığından çek
+                if (!gameState.tiles || gameState.tiles.length === 0) {
+                    this.trigger('error', { message: 'Destede taş kalmadı!' });
+                    return;
+                }
+                drawnTile = gameState.tiles.pop();
             }
-        }
 
-        if (drawnTile) {
+            if (!drawnTile) return;
+
             gameState.playerTiles[myPlayer.index].push(drawnTile);
             gameState.hasDrawn = true;
+
+            const actionId = 'draw_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
             room.gameStateJson = JSON.stringify(gameState);
+            room.lastAction = {
+                id: actionId,
+                type: 'tileDrawn',
+                payload: {
+                    playerIndex: myPlayer.index,
+                    tile: drawnTile,
+                    fromDiscard: isFromDiscard,
+                    mustOpenHand: mustOpenHand,
+                    tileCount: gameState.playerTiles[myPlayer.index].length
+                },
+                timestamp: Date.now()
+            };
+
             await roomRef.set(room);
+        } catch (err) {
+            console.error('handleDrawTile error:', err);
         }
     }
 
+    // Taş Atma
     async handleDiscardTile({ tileIndex }) {
         const roomRef = db.collection('okey_v2_rooms').doc(this.currentRoom);
-        const doc = await roomRef.get();
-        if (!doc.exists) return;
-        const room = doc.data();
-        const gameState = room.gameStateJson ? JSON.parse(room.gameStateJson) : room.gameState;
-        if (!gameState) return;
 
-        const myName = localStorage.getItem('okeyPlayerName');
-        const myPlayer = room.players.find(p => p.id === this.id || p.name === myName);
-        if (!myPlayer || gameState.currentPlayer !== myPlayer.index) return;
+        try {
+            const doc = await roomRef.get();
+            if (!doc.exists) return;
+            const room = doc.data();
+            const gameState = JSON.parse(room.gameStateJson);
 
-        const playerHand = gameState.playerTiles[myPlayer.index];
-        const discarded = playerHand.splice(tileIndex, 1)[0];
+            const myName = localStorage.getItem('okeyPlayerName');
+            const myPlayer = room.players.find(p => p.id === this.id || p.name === myName);
+            if (!myPlayer || gameState.currentPlayer !== myPlayer.index) {
+                this.trigger('error', { message: 'Sıra sizde değil!' });
+                return;
+            }
 
-        if (discarded) {
+            if (!gameState.hasDrawn) {
+                this.trigger('error', { message: 'Önce taş çekmelisiniz!' });
+                return;
+            }
+
+            // Yerden taş aldıysa ve el açmadıysa ceza kontrolü
+            const pState = gameState.playerStates[myPlayer.index];
+            if (pState.mustOpenThisTurn && !pState.hasOpened) {
+                // 101 kuralı: Yerden taş alıp açamayan oyuncuya 101 ceza puanı verilir
+                if (room.scores) {
+                    const sc = room.scores[myPlayer.name] || 0;
+                    room.scores[myPlayer.name] = sc + 101;
+                }
+                this.trigger('penaltyApplied', {
+                    playerIndex: myPlayer.index,
+                    playerName: myPlayer.name,
+                    reason: 'Yerden taş alıp el açamadı!',
+                    penalty: 101,
+                    scores: room.scores || {}
+                });
+            }
+
+            const playerHand = gameState.playerTiles[myPlayer.index];
+            const discarded = playerHand.splice(tileIndex, 1)[0];
+            if (!discarded) return;
+
             gameState.discardPiles[myPlayer.index].push(discarded);
-            gameState.currentPlayer = (gameState.currentPlayer + 1) % 4;
+
+            const numPlayers = room.players.length;
+            const nextPlayer = (myPlayer.index + 1) % numPlayers;
+            gameState.currentPlayer = nextPlayer;
             gameState.hasDrawn = false;
+            pState.mustOpenThisTurn = false;
+            pState.drawnFromDiscardTile = null;
+
+            // Bitirme kontrolü (Elde taş kalmadıysa)
+            if (playerHand.length === 0) {
+                this.finishGameLogic(room, gameState, myPlayer.index, false);
+                return;
+            }
+
+            const actionId = 'discard_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
             room.gameStateJson = JSON.stringify(gameState);
+            room.lastAction = {
+                id: actionId,
+                type: 'tileDiscarded',
+                payload: {
+                    playerIndex: myPlayer.index,
+                    tile: discarded,
+                    nextPlayer: nextPlayer,
+                    leftDiscard: discarded,
+                    tileCount: playerHand.length
+                },
+                timestamp: Date.now()
+            };
+
             await roomRef.set(room);
+        } catch (err) {
+            console.error('handleDiscardTile error:', err);
         }
     }
 
-    async handleOpenGroup({ groups }) {
+    // El Açma (Seri / Perler ile 101+ puan)
+    async handleOpenHand(data) {
+        const { groups, score } = data;
         const roomRef = db.collection('okey_v2_rooms').doc(this.currentRoom);
-        const doc = await roomRef.get();
-        if (!doc.exists) return;
-        const room = doc.data();
-        const gameState = room.gameStateJson ? JSON.parse(room.gameStateJson) : room.gameState;
-        if (!gameState) return;
 
-        const myName = localStorage.getItem('okeyPlayerName');
-        const myPlayer = room.players.find(p => p.id === this.id || p.name === myName);
-        if (!myPlayer) return;
+        try {
+            const doc = await roomRef.get();
+            if (!doc.exists) return;
+            const room = doc.data();
+            const gameState = JSON.parse(room.gameStateJson);
 
-        groups.forEach(g => {
-            gameState.tableGroups.push({
-                tiles: g,
-                playerIndex: myPlayer.index
+            const myName = localStorage.getItem('okeyPlayerName');
+            const myPlayer = room.players.find(p => p.id === this.id || p.name === myName);
+            if (!myPlayer) return;
+
+            const playerHand = gameState.playerTiles[myPlayer.index];
+            const openedGroups = groups.map(groupIndices => {
+                return groupIndices.map(idx => playerHand[idx]).filter(Boolean);
             });
-        });
 
-        gameState.playerStates[myPlayer.index].hasOpened = true;
-        gameState.playerStates[myPlayer.index].openType = 'normal';
-        room.gameStateJson = JSON.stringify(gameState);
-        await roomRef.set(room);
-    }
-
-    async handleOpenPairs({ pairs }) {
-        const roomRef = db.collection('okey_v2_rooms').doc(this.currentRoom);
-        const doc = await roomRef.get();
-        if (!doc.exists) return;
-        const room = doc.data();
-        const gameState = room.gameStateJson ? JSON.parse(room.gameStateJson) : room.gameState;
-        if (!gameState) return;
-
-        const myName = localStorage.getItem('okeyPlayerName');
-        const myPlayer = room.players.find(p => p.id === this.id || p.name === myName);
-        if (!myPlayer) return;
-
-        pairs.forEach(p => {
-            gameState.tableGroups.push({
-                tiles: p,
-                playerIndex: myPlayer.index,
-                isPair: true
+            // Açılan taşları elden çıkar (büyük indeksten küçüğe doğru)
+            const allIndices = groups.flat().sort((a, b) => b - a);
+            allIndices.forEach(idx => {
+                playerHand.splice(idx, 1);
             });
-        });
 
-        gameState.playerStates[myPlayer.index].hasOpened = true;
-        gameState.playerStates[myPlayer.index].openType = 'pairs';
-        room.gameStateJson = JSON.stringify(gameState);
-        await roomRef.set(room);
-    }
+            // Masa açık gruplarına ekle
+            openedGroups.forEach(g => {
+                gameState.tableGroups.push({
+                    tiles: g,
+                    playerIndex: myPlayer.index
+                });
+            });
 
-    async handleAddTileToGroup({ groupIndex, tile, position }) {
-        const roomRef = db.collection('okey_v2_rooms').doc(this.currentRoom);
-        const doc = await roomRef.get();
-        if (!doc.exists) return;
-        const room = doc.data();
-        const gameState = room.gameStateJson ? JSON.parse(room.gameStateJson) : room.gameState;
-        if (!gameState || !gameState.tableGroups[groupIndex]) return;
+            gameState.playerStates[myPlayer.index].hasOpened = true;
+            gameState.playerStates[myPlayer.index].openType = 'normal';
+            gameState.playerStates[myPlayer.index].openScore = score;
+            gameState.playerStates[myPlayer.index].openedGroups = openedGroups;
+            gameState.playerStates[myPlayer.index].mustOpenThisTurn = false;
 
-        if (position === 'start') {
-            gameState.tableGroups[groupIndex].tiles.unshift(tile);
-        } else {
-            gameState.tableGroups[groupIndex].tiles.push(tile);
+            // Katlamalı modda bir sonraki açma için barajı güncelle
+            if (room.stackingMode) {
+                gameState.minimumOpenScore = score + 1;
+            }
+
+            const actionId = 'open_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+            room.gameStateJson = JSON.stringify(gameState);
+            room.lastAction = {
+                id: actionId,
+                type: 'handOpened',
+                payload: {
+                    playerIndex: myPlayer.index,
+                    playerName: myPlayer.name,
+                    openedGroups: openedGroups,
+                    score: score,
+                    tileCount: playerHand.length,
+                    remainingTiles: playerHand,
+                    minimumOpenScore: gameState.minimumOpenScore
+                },
+                timestamp: Date.now()
+            };
+
+            await roomRef.set(room);
+        } catch (err) {
+            console.error('handleOpenHand error:', err);
         }
-        room.gameStateJson = JSON.stringify(gameState);
-        await roomRef.set(room);
     }
 
-    async handleThrowTomato(data) {
-        this.trigger('tomatoThrown', data);
+    // Çift Açma (En az 5 çift)
+    async handleOpenPairs(data) {
+        const { pairs } = data;
+        const roomRef = db.collection('okey_v2_rooms').doc(this.currentRoom);
+
+        try {
+            const doc = await roomRef.get();
+            if (!doc.exists) return;
+            const room = doc.data();
+            const gameState = JSON.parse(room.gameStateJson);
+
+            const myName = localStorage.getItem('okeyPlayerName');
+            const myPlayer = room.players.find(p => p.id === this.id || p.name === myName);
+            if (!myPlayer) return;
+
+            const playerHand = gameState.playerTiles[myPlayer.index];
+            const openedPairs = pairs.map(pairIndices => {
+                return pairIndices.map(idx => playerHand[idx]).filter(Boolean);
+            });
+
+            // Taşları elden çıkar
+            const allIndices = pairs.flat().sort((a, b) => b - a);
+            allIndices.forEach(idx => {
+                playerHand.splice(idx, 1);
+            });
+
+            openedPairs.forEach(p => {
+                gameState.tableGroups.push({
+                    tiles: p,
+                    playerIndex: myPlayer.index,
+                    isPair: true
+                });
+            });
+
+            gameState.playerStates[myPlayer.index].hasOpened = true;
+            gameState.playerStates[myPlayer.index].openType = 'pairs';
+            gameState.playerStates[myPlayer.index].mustOpenThisTurn = false;
+
+            const actionId = 'pairs_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+            room.gameStateJson = JSON.stringify(gameState);
+            room.lastAction = {
+                id: actionId,
+                type: 'pairsOpened',
+                payload: {
+                    playerIndex: myPlayer.index,
+                    playerName: myPlayer.name,
+                    pairsCount: openedPairs.length,
+                    tileCount: playerHand.length,
+                    pairs: openedPairs
+                },
+                timestamp: Date.now()
+            };
+
+            await roomRef.set(room);
+        } catch (err) {
+            console.error('handleOpenPairs error:', err);
+        }
+    }
+
+    // Açılmış Sete Taş İşleme (İşler Taş)
+    async handleAddTileToGroup(data) {
+        const { groupIndex, targetPlayerIndex, position, tileIndex, tile } = data;
+        const roomRef = db.collection('okey_v2_rooms').doc(this.currentRoom);
+
+        try {
+            const doc = await roomRef.get();
+            if (!doc.exists) return;
+            const room = doc.data();
+            const gameState = JSON.parse(room.gameStateJson);
+
+            const myName = localStorage.getItem('okeyPlayerName');
+            const myPlayer = room.players.find(p => p.id === this.id || p.name === myName);
+            if (!myPlayer) return;
+
+            const playerHand = gameState.playerTiles[myPlayer.index];
+            const targetGroup = gameState.tableGroups[groupIndex];
+            if (!targetGroup) return;
+
+            // Taşı elden çıkar
+            playerHand.splice(tileIndex, 1);
+
+            // Gruba ekle
+            if (position === 'left' || position === 'start') {
+                targetGroup.tiles.unshift(tile);
+            } else {
+                targetGroup.tiles.push(tile);
+            }
+
+            const actionId = 'groupUp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+            room.gameStateJson = JSON.stringify(gameState);
+            room.lastAction = {
+                id: actionId,
+                type: 'groupUpdated',
+                payload: {
+                    group: targetGroup,
+                    groupIndex: groupIndex,
+                    targetPlayerIndex: targetPlayerIndex,
+                    playerIndex: myPlayer.index,
+                    tileIndices: [tileIndex],
+                    playerTileCount: playerHand.length
+                },
+                timestamp: Date.now()
+            };
+
+            await roomRef.set(room);
+        } catch (err) {
+            console.error('handleAddTileToGroup error:', err);
+        }
+    }
+
+    // Oyunu Bitirme Mantığı ve Skor Hesaplama
+    async finishGameLogic(room, gameState, winnerIndex, isOkeyFinish) {
+        const winner = room.players[winnerIndex];
+        const numPlayers = room.players.length;
+        const points = new Array(numPlayers).fill(0);
+
+        if (!room.scores) room.scores = {};
+
+        for (let i = 0; i < numPlayers; i++) {
+            const p = room.players[i];
+            const pHand = gameState.playerTiles[i] || [];
+            const pState = gameState.playerStates[i] || {};
+
+            if (i === winnerIndex) {
+                // Kazanan: -101 puan (veya okeyle bitirildiyse -202)
+                points[i] = isOkeyFinish ? -202 : -101;
+            } else if (!pState.hasOpened) {
+                // El açamayan ceza: 202 puan (okeyle bittiyse 404)
+                points[i] = isOkeyFinish ? 404 : 202;
+            } else {
+                // El açan kalan taşlarının toplamı kadar ceza alır
+                let sum = 0;
+                pHand.forEach(t => { sum += (t.number || 0); });
+                points[i] = isOkeyFinish ? sum * 2 : sum;
+            }
+
+            // Toplam skora ekle
+            const prev = room.scores[p.name] || 0;
+            room.scores[p.name] = prev + points[i];
+        }
+
+        gameState.finished = true;
+        room.gameStateJson = JSON.stringify(gameState);
+        room.lastAction = {
+            id: 'finish_' + Date.now(),
+            type: 'gameFinished',
+            payload: {
+                winner: winnerIndex,
+                winnerName: winner ? winner.name : 'Oyuncu',
+                isOkeyFinish: !!isOkeyFinish,
+                points: points,
+                scores: room.scores,
+                teamMode: room.teamMode
+            },
+            timestamp: Date.now()
+        };
+
+        const roomRef = db.collection('okey_v2_rooms').doc(this.currentRoom);
+        await roomRef.set(room);
     }
 
     async handleFinishGame(data) {
@@ -588,17 +877,89 @@ class FirebaseSocketAdapter {
         const doc = await roomRef.get();
         if (!doc.exists) return;
         const room = doc.data();
-        const gameState = room.gameStateJson ? JSON.parse(room.gameStateJson) : room.gameState;
-        if (gameState) {
-            gameState.finished = true;
-            gameState.winner = data;
-            room.gameStateJson = JSON.stringify(gameState);
+        const gameState = JSON.parse(room.gameStateJson);
+
+        const myName = localStorage.getItem('okeyPlayerName');
+        const myPlayer = room.players.find(p => p.id === this.id || p.name === myName);
+        if (!myPlayer) return;
+
+        await this.finishGameLogic(room, gameState, myPlayer.index, data?.isOkeyFinish);
+    }
+
+    async handleSortTiles(data) {
+        const roomRef = db.collection('okey_v2_rooms').doc(this.currentRoom);
+        try {
+            const doc = await roomRef.get();
+            if (!doc.exists) return;
+            const room = doc.data();
+            const gameState = JSON.parse(room.gameStateJson);
+
+            const myName = localStorage.getItem('okeyPlayerName');
+            const myPlayer = room.players.find(p => p.id === this.id || p.name === myName);
+            if (myPlayer && gameState.playerTiles[myPlayer.index]) {
+                gameState.playerTiles[myPlayer.index] = data.tiles;
+                room.gameStateJson = JSON.stringify(gameState);
+                await roomRef.set(room);
+            }
+        } catch (e) {}
+    }
+
+    async handleThrowTomato(data) {
+        const roomRef = db.collection('okey_v2_rooms').doc(this.currentRoom);
+        try {
+            const doc = await roomRef.get();
+            if (!doc.exists) return;
+            const room = doc.data();
+
+            room.lastAction = {
+                id: 'tomato_' + Date.now(),
+                type: 'tomatoThrown',
+                payload: data,
+                timestamp: Date.now()
+            };
             await roomRef.set(room);
-        }
+        } catch (e) {}
+    }
+
+    async handleNewRound() {
+        const roomRef = db.collection('okey_v2_rooms').doc(this.currentRoom);
+        try {
+            const doc = await roomRef.get();
+            if (!doc.exists) return;
+            const room = doc.data();
+            const realPlayers = room.players || [];
+
+            const gameState = this.initGameLogic(realPlayers);
+            this.gameStartedEver = false;
+            room.gameStateJson = JSON.stringify(gameState);
+            room.lastAction = {
+                id: 'newround_' + Date.now(),
+                type: 'gameStartedSync',
+                payload: {},
+                timestamp: Date.now()
+            };
+            await roomRef.set(room);
+        } catch (e) {}
     }
 
     async handleLeaveRoom() {
         if (this.roomUnsub) this.roomUnsub();
+        const roomRef = db.collection('okey_v2_rooms').doc(this.currentRoom);
+        try {
+            const doc = await roomRef.get();
+            if (!doc.exists) return;
+            const room = doc.data();
+            const updated = (room.players || []).filter(p => p.id !== this.id);
+            if (updated.length === 0) {
+                await roomRef.delete();
+            } else {
+                let newHost = room.hostId;
+                if (room.hostId === this.id) {
+                    newHost = updated[0].id;
+                }
+                await roomRef.update({ players: updated, hostId: newHost });
+            }
+        } catch (e) {}
     }
 }
 
