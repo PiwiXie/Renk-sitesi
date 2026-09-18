@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/okey", "destination": "/101v2/index.html" },
     { "source": "/101v2/game", "destination": "/101v2/game.html" },
     { "source": "/101v2/game.html", "destination": "/101v2/game.html" },
     { "source": "/101v2", "destination": "/101v2/index.html" },
